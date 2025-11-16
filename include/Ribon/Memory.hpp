@@ -1,0 +1,169 @@
+// include/Ribon/Memory.hpp
+
+#pragma once
+#include <Uefi.h>
+#include "Init.hpp"
+
+// ------------------------------------------
+// Internal “allocation tracing” state
+// ------------------------------------------
+static UINTN g_allocCount = 0;
+static UINTN g_freeCount  = 0;
+static UINTN g_allocBytes = 0;
+static UINTN g_freeBytes  = 0;
+
+namespace ribon::mem {
+
+    inline EFI_STATUS AllocatePool(
+        EFI_MEMORY_TYPE   type,
+        UINTN             size,
+        VOID            **buffer
+    ) {
+        auto bs = ribon::getBS();
+        if (!bs) return EFI_UNSUPPORTED;
+
+        return bs->AllocatePool(type, size, buffer);
+    }
+
+    inline EFI_STATUS FreePool(VOID* buffer) {
+        auto bs = ribon::getBS();
+        if (!bs) return EFI_UNSUPPORTED;
+
+        return bs->FreePool(buffer);
+    }
+
+    inline EFI_STATUS AllocateZeroPool(
+        EFI_MEMORY_TYPE type,
+        UINTN           size,
+        VOID          **buffer
+    ) {
+        EFI_STATUS status = AllocatePool(type, size, buffer);
+        if (EFI_ERROR(status)) return status;
+
+        auto bs = ribon::getBS();
+        if (!bs) return EFI_UNSUPPORTED;
+
+        bs->SetMem(*buffer, size, 0);
+        return EFI_SUCCESS;
+    }
+
+    /**
+     * @brief AllocateCopyPool — 메모리 복사 Allocate
+     */
+    inline EFI_STATUS AllocateCopyPool(
+        EFI_MEMORY_TYPE type,
+        UINTN           size,
+        VOID*           src,
+        VOID          **dst
+    ) {
+        EFI_STATUS st = AllocatePool(type, size, dst);
+        if (EFI_ERROR(st)) return st;
+
+        auto bs = ribon::getBS();
+        bs->CopyMem(*dst, src, size);
+        return EFI_SUCCESS;
+    }
+
+    /**
+     * @brief ReallocatePool - C-style realloc()
+     */
+    inline EFI_STATUS ReallocatePool(
+        EFI_MEMORY_TYPE type,
+        UINTN           oldSize,
+        UINTN           newSize,
+        VOID          **buffer
+    ) {
+        VOID* old = *buffer;
+        VOID* newBuf = nullptr;
+
+        EFI_STATUS st = AllocatePool(type, newSize, &newBuf);
+        if (EFI_ERROR(st)) return st;
+
+        auto bs = ribon::getBS();
+        bs->CopyMem(newBuf, old, oldSize < newSize ? oldSize : newSize);
+
+        FreePool(old);
+        *buffer = newBuf;
+
+        return EFI_SUCCESS;
+    }
+
+    /**
+     * @brief AllocateAlignedPool - 정렬된 메모리 할당
+     */
+    inline EFI_STATUS AllocateAlignedPool(
+        EFI_MEMORY_TYPE type,
+        UINTN           size,
+        UINTN           alignment,
+        VOID          **buffer
+    ) {
+        UINTN total = size + alignment;
+        VOID* raw = nullptr;
+
+        EFI_STATUS st = AllocatePool(type, total, &raw);
+        if (EFI_ERROR(st)) return st;
+
+        UINTN addr = (UINTN)raw;
+        UINTN aligned = (addr + (alignment - 1)) & ~(alignment - 1);
+
+        *buffer = (VOID*)aligned;
+        return EFI_SUCCESS;
+    }
+
+    /**
+     * @brief GetMemoryStats - UEFI Memory Map을 사용해서 전체/사용가능 메모리 조회
+     */
+    inline EFI_STATUS GetMemoryStats(UINTN* totalMemory, UINTN* freeMemory) {
+        auto bs = ribon::getBS();
+        if (!bs) return EFI_UNSUPPORTED;
+
+        EFI_MEMORY_DESCRIPTOR* memMap = nullptr;
+        UINTN memMapSize = 0, mapKey, descSize;
+        UINT32 descVersion;
+
+        // Get size
+        EFI_STATUS st = bs->GetMemoryMap(
+            &memMapSize, memMap, &mapKey, &descSize, &descVersion
+        );
+        if (st != EFI_BUFFER_TOO_SMALL) return st;
+
+        // Allocate buffer
+        memMap = (EFI_MEMORY_DESCRIPTOR*) AllocatePool(EfiLoaderData, memMapSize, (void**)&memMap);
+        if (!memMap) return EFI_OUT_OF_RESOURCES;
+
+        // Get actual memory map
+        st = bs->GetMemoryMap(
+            &memMapSize, memMap, &mapKey, &descSize, &descVersion
+        );
+        if (EFI_ERROR(st)) {
+            FreePool(memMap);
+            return st;
+        }
+
+        UINTN total = 0, freeM = 0;
+
+        for (UINTN i = 0; i < memMapSize / descSize; i++) {
+            EFI_MEMORY_DESCRIPTOR* d = (EFI_MEMORY_DESCRIPTOR*)((UINT8*)memMap + i * descSize);
+            UINTN bytes = d->NumberOfPages * 4096;
+
+            total += bytes;
+
+            if (d->Type == EfiConventionalMemory)
+                freeM += bytes;
+        }
+
+        *totalMemory = total;
+        *freeMemory  = freeM;
+
+        FreePool(memMap);
+        return EFI_SUCCESS;
+    }
+
+    inline UINTN GetAvailableMemory() {
+        UINTN total = 0, freeM = 0;
+        if (EFI_ERROR(GetMemoryStats(&total, &freeM))) return 0;
+        return freeM;
+    }
+
+
+} // namespace ribon::mem
