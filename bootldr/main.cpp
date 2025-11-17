@@ -8,8 +8,10 @@ extern "C" {
 #include <Ribon/Init.hpp>
 #include <Ribon/base/Utf16String.hpp>
 #include <Ribon/Print.hpp>
+#include <Ribon/FrameBuffer.hpp>
+#include <Ribon/Screen.hpp>
+#include <Ribon/Console.hpp>
 
-EFI_GRAPHICS_OUTPUT_PROTOCOL *gGop = nullptr;
 
 extern "C"
 EFI_STATUS
@@ -19,34 +21,34 @@ EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
     // Ribon 초기화
     ribon::initialize(SystemTable);
 
+    ribon::console::Console console;
+    ribon::console::setConsole(&console);
+
+    console.SetMode(ribon::console::TextMode::FBFont);
+
     // 화면 정리
     auto st = ribon::getST();
-    st->ConOut->ClearScreen(st->ConOut);
-
-    // Utf16String
-    ribon::str::Utf16String banner("Ribon EFI Bootloader Starting...\r\n");
-    ribon::IO::Print<ribon::IO::Tags::RAW>(banner);
-
-    ribon::IO::Print<ribon::IO::Tags::UTF16>("Hello? %d\n", 10);
-
-
-    // Gop 로딩
     auto bs = ribon::getBS();
 
-    EFI_STATUS status = bs->LocateProtocol(
-        &gEfiGraphicsOutputProtocolGuid,
-        nullptr,
-        (void**)&gGop
+
+    ribon::gfx::initScreen(800, 600);
+    ribon::gfx::clear(221, 160, 255, 1);
+
+    
+
+
+    // 배너 출력
+    ribon::IO::Print<ribon::IO::Tags::UTF16>(
+        "Ribon EFI Bootloader Starting...\r\n"
     );
 
-    if (EFI_ERROR(status)) {
-        ribon::str::Utf16String err("GOP protocol not found.\r\n");
-        st->ConOut->OutputString(st->ConOut, err.c_str());
-        return status;
-    }
+    ribon::IO::Print<ribon::IO::Tags::UTF16>(
+        "Hello? %d\n", 42
+    );
 
-    ribon::str::Utf16String ok("GOP loaded successfully.\r\n");
-    st->ConOut->OutputString(st->ConOut, ok.c_str());
+    ribon::IO::Print<ribon::IO::Tags::UTF16>(
+        "GOP loaded successfully.\r\n"
+    );
 
     
     // -----------------------------------

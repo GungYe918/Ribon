@@ -24,13 +24,15 @@ target_link_options(RibonEFI PRIVATE
 
 target_link_libraries(RibonEFI
     ribon_core
+    ribon_guids
     ribon_elf
     ribon_efi
     ribon_multiboot
     ribon_fiasco
-    ribon_guids
     ribon_rt
     ribon_io
+    ribon_console
+    ribon_gfx
     ribon_arch
 )
 

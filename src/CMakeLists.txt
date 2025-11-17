@@ -6,8 +6,18 @@ add_library(ribon_core STATIC
     core/utf16_string.cpp
 )
 
+add_library(ribon_guids STATIC
+    guids/guids.cpp
+)
+
 add_library(ribon_rt STATIC
     runtime/init.cpp
+)
+
+add_library(ribon_console STATIC
+    console/console.cpp
+    console/font.cpp
+    console/font_map.cpp
 )
 
 add_library(ribon_elf STATIC
@@ -26,11 +36,11 @@ add_library(ribon_fiasco STATIC
     fiasco/fiasco_loader.cpp
 )
 
-add_library(ribon_guids STATIC
-    guids/guids.cpp
+add_library(ribon_gfx STATIC
+    gfx/framebuffer.cpp
+    gfx/screen.cpp
 )
 
 add_library(ribon_io STATIC
     io/print.cpp
-    io/console.cpp
 )

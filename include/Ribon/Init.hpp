@@ -1,5 +1,10 @@
+// Ribon/Init.hpp
 #pragma once
-#include <Uefi.h>
+
+extern "C" {
+    #include <Uefi.h>
+    #include <Protocol/GraphicsOutput.h>
+}
 
 namespace ribon {
 
@@ -7,5 +12,6 @@ namespace ribon {
 
     EFI_SYSTEM_TABLE* getST();
     EFI_BOOT_SERVICES* getBS();
+    EFI_GRAPHICS_OUTPUT_PROTOCOL* getGop();
 
 } // namespace ribon

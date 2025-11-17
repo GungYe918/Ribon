@@ -1,47 +1,30 @@
+// src/io/print.cpp
 #include <Ribon/Print.hpp>
 #include <Ribon/base/Utf8String.hpp>
 #include <Ribon/base/Utf16String.hpp>
 #include <Ribon/Init.hpp>
-#include <Uefi.h>
+#include <Ribon/Console.hpp>
+
 
 namespace ribon::IO::detail {
 
-    static void NormalizeAndOutput(const CHAR16* src) {
-        if (!getST() || !getST()->ConOut) {
-            return;
-        }
+    // -------------------------------
+    // Normalize: \n → \r\n 변환 등
+    // Console의 writeSimpleText()가
+    // 그대로 출력하므로 이 단계는 필요 없음
+    // -------------------------------
+    void NormalizeAndOutput(const CHAR16* src) 
+    {
+        auto con = ribon::console::getConsole();
+        if (!con) return;
 
-        CHAR16 tmp[1024];
-        UINTN j = 0;
-
-        for (UINTN i = 0; src[i] != L'\0' && j < 1022; i++) {
-            CHAR16 c = src[i];
-
-            if (c == L'\n') {
-                tmp[j++] = L'\r';
-                tmp[j++] = L'\n';
-            }
-            else if (c == L'\t') {
-                for (int t = 0; t < 4 && j < 1022; t++)
-                    tmp[j++] = L' ';
-            }
-            else if (c == L'\b') {
-                if (j > 0) j--;
-            }
-            else {
-                tmp[j++] = c;
-            }
-        }
-
-        tmp[j] = L'\0';
-        getST()->ConOut->OutputString(getST()->ConOut, tmp);
+        // 그대로 Console에 전달
+        ribon::str::Utf16String u16(src);
+        con->write(u16);
     }
 
-    
-    
-    /**
-     * @details 숫자 포멧 변환 함수들
-     */
+
+    // 정수 포맷 변환 ------------------------------------------
 
     static void UIntToDec(UINT64 v, CHAR16* out)
     {
@@ -93,9 +76,9 @@ namespace ribon::IO::detail {
     }
 
 
-    /**
-     * @brief printf 스타일 포맷팅을 수행하여 UTF-16 문자열을 돌려줌
-     */
+    // -------------------------------------------------------
+    // FormatToUtf16: printf-style formatting → Utf16String
+    // -------------------------------------------------------
     ribon::str::Utf16String FormatToUtf16(const char* fmt, va_list args)
     {
         CHAR16 buffer[512];
@@ -118,10 +101,8 @@ namespace ribon::IO::detail {
                 }
                 else if (fmt[i] == 'l' && (fmt[i+1] == 'u' || fmt[i+1] == 'x')) {
                     UINT64 v = va_arg(args, UINT64);
-                    if (fmt[i+1] == 'u')
-                        UIntToDec(v, numbuf);
-                    else
-                        UIntToHex(v, numbuf);
+                    if (fmt[i+1] == 'u') UIntToDec(v, numbuf);
+                    else                UIntToHex(v, numbuf);
                     i++;
                 }
                 else if (fmt[i] == 's') {
@@ -150,45 +131,73 @@ namespace ribon::IO::detail {
         return ribon::str::Utf16String(buffer);
     }
 
-
-
 } // namespace ribon::IO::detail
 
 
 
-// --------------------------------
-//      공통 출력 함수
-// --------------------------------
+
+// ===========================================================
+//                  Public IO API (Console 기반)
+// ===========================================================
 
 namespace ribon::IO {
 
-    void FormatPrint(const char* utf8_fmt, va_list args) {
-        auto s = detail::FormatToUtf16(utf8_fmt, args);
-        Utf16Print(s.c_str());
+    // -------------------------------------------------------
+    // FormatPrint → Console::write()
+    // -------------------------------------------------------
+    void FormatPrint(const char* utf8_fmt, va_list args)
+    {
+        auto con = ribon::console::getConsole();
+        if (!con) return;  // console 미등록 시 출력 무시
+
+        ribon::str::Utf16String s = detail::FormatToUtf16(utf8_fmt, args);
+        con->write(s);
     }
 
 
-    void Utf16Print(const CHAR16* wstr) {
-        if (!wstr) return;
+    // -------------------------------------------------------
+    // Utf16Print: Console::write() 직접 호출
+    // -------------------------------------------------------
+    void Utf16Print(const CHAR16* wstr)
+    {
+        auto con = ribon::console::getConsole();
+        if (!con) return;
 
-        detail::NormalizeAndOutput(wstr);
+        ribon::str::Utf16String s(wstr);
+        con->write(s);   // 끝!
     }
 
-    void PrintRaw(const char* str) {
+
+    // -------------------------------------------------------
+    // PrintRaw: UTF8 → UTF16 변환 후 Console
+    // -------------------------------------------------------
+    void PrintRaw(const char* str)
+    {
         if (!str) return;
-        // UTF-8 -> UTF-16 변환
+        auto con = ribon::console::getConsole();
+        if (!con) return;
+
         ribon::str::Utf16String utf16(str);
-        Utf16Print(utf16.c_str());
+        con->write(utf16);
     }
 
-    // 기본 UTF8 Print
-    void Print(const char* fmt, ...) {
+
+    // -------------------------------------------------------
+    // 기본 Print(fmt, ...)
+    // -------------------------------------------------------
+    void Print(const char* fmt, ...)
+    {
+        auto con = ribon::console::getConsole();
+        if (!con) return;
+
         va_list args;
         va_start(args, fmt);
-        auto s = detail::FormatToUtf16(fmt, args);
+
+        ribon::str::Utf16String s = detail::FormatToUtf16(fmt, args);
+
         va_end(args);
 
-        Utf16Print(s.c_str());
+        con->write(s);
     }
 
 } // namespace ribon::IO
