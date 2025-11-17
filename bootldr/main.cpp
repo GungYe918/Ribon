@@ -1,10 +1,3 @@
-extern "C" {
-    #include <Uefi.h>
-    #include <Protocol/SimpleTextOut.h>
-    #include <Protocol/SimpleTextIn.h>
-    #include <Protocol/GraphicsOutput.h>
-}
-
 #include <Ribon/Init.hpp>
 #include <Ribon/base/Utf16String.hpp>
 #include <Ribon/Print.hpp>
@@ -56,9 +49,8 @@ EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
     // -----------------------------------
     // Stall() 단위: 1 마이크로초 (1 µs)
     // 5초 = 5,000,000 µs
-    bs->Stall(5000000);
+    bs->Stall(10000000);
 
-    return EFI_SUCCESS;
 
     return EFI_SUCCESS;
 }

@@ -1,3 +1,4 @@
+// src/console/console.cpp
 #include <Ribon/Console.hpp>
 #include <Ribon/Init.hpp>
 #include <Ribon/FrameBuffer.hpp>
@@ -27,6 +28,7 @@ namespace ribon::console {
 
     Console::Console() {
         currentMode = TextMode::SimpleText;
+        ribon::font::setCursor(0, 0);
     }
 
     void Console::SetMode(TextMode mode) {
@@ -124,10 +126,15 @@ namespace ribon::console {
 
 
     void Console::setCursor(UINTN col, UINTN row) {
-        if (currentMode != TextMode::SimpleText) return;
-        auto st = ribon::getST();
-        if (st && st->ConOut) st->ConOut->SetCursorPosition(st->ConOut, col, row);
+        if (currentMode == TextMode::SimpleText) {
+            auto st = ribon::getST();
+            if (st && st->ConOut)
+                st->ConOut->SetCursorPosition(st->ConOut, col, row);
+        } else {
+            ribon::font::setCursor(col, row);
+        }
     }
+
 
 
     void Console::clear() {
