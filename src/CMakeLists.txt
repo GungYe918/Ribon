@@ -15,9 +15,7 @@ add_library(ribon_elf STATIC
 )
 
 add_library(ribon_efi STATIC
-    efi/efi_file.cpp
-    efi/efi_memory.cpp
-    efi/efi_print.cpp
+    efi/efi.cpp
 )
 
 add_library(ribon_multiboot STATIC
@@ -30,4 +28,9 @@ add_library(ribon_fiasco STATIC
 
 add_library(ribon_guids STATIC
     guids/guids.cpp
+)
+
+add_library(ribon_io STATIC
+    io/print.cpp
+    io/console.cpp
 )

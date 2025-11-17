@@ -30,6 +30,7 @@ target_link_libraries(RibonEFI
     ribon_fiasco
     ribon_guids
     ribon_rt
+    ribon_io
     ribon_arch
 )
 

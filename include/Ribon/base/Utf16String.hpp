@@ -25,6 +25,10 @@ namespace ribon::str {
         CHAR16 *c_str() { return buf; }  
         const CHAR16 *c_str() const {  return buf;  }
         UINTN length() const {  return len;  }
+
+        void append(const CHAR16* tail);
+        void append(const char* utf8_tail);
+        void append(const Utf16String& other);
     
     private:
         CHAR16* buf;

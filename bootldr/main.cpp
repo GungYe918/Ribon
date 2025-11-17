@@ -6,7 +6,8 @@ extern "C" {
 }
 
 #include <Ribon/Init.hpp>
-#include <Ribon/Utf16String.hpp>
+#include <Ribon/base/Utf16String.hpp>
+#include <Ribon/Print.hpp>
 
 EFI_GRAPHICS_OUTPUT_PROTOCOL *gGop = nullptr;
 
@@ -24,6 +25,10 @@ EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
 
     // Utf16String
     ribon::str::Utf16String banner("Ribon EFI Bootloader Starting...\r\n");
+    ribon::IO::Print<ribon::IO::Tags::RAW>(banner);
+
+    ribon::IO::Print<ribon::IO::Tags::UTF16>("Hello? %d\n", 10);
+
 
     // Gop 로딩
     auto bs = ribon::getBS();
@@ -42,6 +47,16 @@ EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
 
     ribon::str::Utf16String ok("GOP loaded successfully.\r\n");
     st->ConOut->OutputString(st->ConOut, ok.c_str());
+
+    
+    // -----------------------------------
+    //   5초 대기 (UEFI Stall 사용)
+    // -----------------------------------
+    // Stall() 단위: 1 마이크로초 (1 µs)
+    // 5초 = 5,000,000 µs
+    bs->Stall(5000000);
+
+    return EFI_SUCCESS;
 
     return EFI_SUCCESS;
 }

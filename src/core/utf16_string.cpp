@@ -1,4 +1,4 @@
-#include <Ribon/Utf16String.hpp>
+#include <Ribon/base/Utf16String.hpp>
 #include <Ribon/Memory.hpp>
 #include <Uefi.h>
 
@@ -93,5 +93,50 @@ namespace ribon::str {
     // 소멸자
     Utf16String::~Utf16String() {
         if (buf) mem::FreePool(buf);
+    }
+
+    void Utf16String::append(const CHAR16* tail) {
+        if (!tail) return;
+
+        UINTN tail_len = 0;
+        while (tail[tail_len]) tail_len++;
+
+        UINTN new_size_bytes = (len + tail_len + 1) * sizeof(CHAR16);
+
+        VOID* tmp = nullptr;
+
+        // UEFI 표준 메모리 타입: EfiBootServicesData
+        if (EFI_ERROR(mem::AllocatePool(EfiBootServicesData, new_size_bytes, &tmp)))
+            return;
+
+        CHAR16* newbuf = (CHAR16*)tmp;
+
+        // 기존 문자열 복사
+        for (UINTN i = 0; i < len; i++)
+            newbuf[i] = buf[i];
+
+        // 뒤에 tail 복사
+        for (UINTN j = 0; j < tail_len; j++)
+            newbuf[len + j] = tail[j];
+
+        newbuf[len + tail_len] = 0;
+
+        // 기존 buf 해제
+        mem::FreePool(buf);
+
+        // 교체
+        buf = newbuf;
+        len = len + tail_len;
+    }
+
+
+
+    void Utf16String::append(const char* utf8_tail) {
+        Utf16String tmp(utf8_tail);
+        append(tmp.c_str());
+    }
+
+    void Utf16String::append(const Utf16String& other) {
+        append(other.c_str());
     }
 }
