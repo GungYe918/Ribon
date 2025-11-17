@@ -1,3 +1,5 @@
+// include/Ribon/Console.hpp
+
 #pragma once
 
 extern "C" {
@@ -50,6 +52,7 @@ namespace ribon::console {
         // 내부 헬퍼 함수
         void writeSimpleText(const CHAR16* wstr);
         void writeFramebufferText(const CHAR16* wstr);
+        void scrollIfNeeded();
     };
 
     /** @brief Console을 시스템에 등록 */

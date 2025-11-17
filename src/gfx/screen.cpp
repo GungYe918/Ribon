@@ -1,16 +1,18 @@
+// src/gfx/screen.hpp
 #include <Ribon/Screen.hpp>
+#include <Ribon/Draw.hpp>
 #include <Ribon/FrameBuffer.hpp>
 #include <Ribon/Init.hpp>
 #include <Ribon/Print.hpp>
 
 namespace ribon::gfx::detail {
 
+    /** @brief GOP에서 원하는 해상도 찾기 */
     static INT32 findMode(UINTN w, UINTN h) {
         auto gop = ribon::getGop();
         if (!gop) return -1;
 
-        for (UINT32 i = 0; i < gop->Mode->MaxMode; i++)
-        {
+        for (UINT32 i = 0; i < gop->Mode->MaxMode; i++) {
             EFI_GRAPHICS_OUTPUT_MODE_INFORMATION* info;
             UINTN size;
 
@@ -21,26 +23,21 @@ namespace ribon::gfx::detail {
                 info->VerticalResolution == h)
                 return i;
         }
-
         return -1;
     }
 
-    static PixelFormat detectPixelFormat() {
-        auto gop = ribon::getGop();
-        if (!gop) return PixelFormat::BGRA;
-
-        auto info = gop->Mode->Info;
-
-        switch (info->PixelFormat) {
-            case PixelBlueGreenRedReserved8BitPerColor:
-                return PixelFormat::BGRA;
-            case PixelRedGreenBlueReserved8BitPerColor:
-                return PixelFormat::RGBA;
-            default:
-                // 팔레트나 bitmask는 아주 드물지만 일단 BGRA 취급
-                return PixelFormat::BGRA;
+    /** @brief GOP PixelFormat -> 내부 PixelFormat 변환 */
+    static constexpr PixelFormat detectPixelFormat(UINT32 pf) {
+        switch (pf) {
+        case PixelBlueGreenRedReserved8BitPerColor:
+            return PixelFormat::BGRA;
+        case PixelRedGreenBlueReserved8BitPerColor:
+            return PixelFormat::RGBA;
+        default:
+            return PixelFormat::BGRA;
         }
     }
+
 
 } // namespace ribon::gfx::detail
 
@@ -52,29 +49,34 @@ namespace ribon::gfx {
     };
 
     // Pixel 쓰기
-    void putPixel(UINTN x, UINTN y, UINT8 r, UINT8 g, UINT8 b) {
-        auto fb = ribon::fb::getFramebuffer();
-
-        if (!fb) return;
-        if (x >= fb->width || y >= fb->height) return;
-
-        UINT32 col = makePixel(r, g, b, gScreen.format);
-
-        UINTN idx = y * fb->pixelsPerScanLine + x;
-        fb->base[idx] = col;
+    void putPixel(UINTN x, UINTN y, UINT8 r, UINT8 g, UINT8 b)
+    {
+        // a=255(완전 불투명)으로 사용
+        ribon::gfx::drawPixelAlpha((int)x, (int)y, r, g, b, 255);
     }
 
     // 화면 전체 Clear
     void clear(UINTN r, UINTN g, UINTN b, UINTN a) {
-        auto fb = ribon::fb::getFramebuffer();
+        const auto& scr = getScreen();
 
-        if (!fb) return;
-        
-        UINT32 col = makePixel(r, g, b, gScreen.format);
+        // 완전 불투명인 경우는 전체 메모리 overwrite
+        if (a == 255) {
+            const UINT32 col = makePixel(r, g, b, scr.format);
+            auto fb = ribon::fb::getFramebuffer();
+            UINTN total = fb->pixelsPerScanLine * fb->height;
 
-        UINTN total = fb->pixelsPerScanLine * fb->height;
-        for (UINTN i = 0; i < total; i++)
-            fb->base[i] = col;
+            for (UINTN i = 0; i < total; i++)
+                fb->base[i] = col;
+
+            return;
+        }
+
+        // 그 외엔 알파 블렌딩
+        for (UINTN y = 0; y < scr.height; y++) {
+            for (UINTN x = 0; x < scr.width; x++) {
+                drawPixelAlpha((int)x, (int)y, r, g, b, (UINT8)a);
+            }
+        }
     }
 
     bool initScreen(UINTN desiredWidth, UINTN desiredHeight) {
@@ -86,34 +88,35 @@ namespace ribon::gfx {
             desiredHeight = 600;
         }
 
-        // fb 초기화 first
+        // 먼저 기존 fb 초기화
         ribon::fb::initFrameBuffer();
 
-        // 원하는 해상도 모드 찾기 
+        // 목표 해상도 찾기
         INT32 mode = detail::findMode(desiredWidth, desiredHeight);
 
-        if (mode < 0) {
-            ribon::IO::Print<ribon::IO::Tags::DEBUG>(
-                "Requested %dx%d not found. Using default mode.\n",
-                desiredWidth, desiredHeight
-            );
-        } else {
+        if (mode >= 0) {
             gop->SetMode(gop, mode);
             ribon::IO::Print<ribon::IO::Tags::DEBUG>(
                 "Screen mode changed to %dx%d\n",
                 desiredWidth, desiredHeight
             );
+        } else {
+            ribon::IO::Print<ribon::IO::Tags::DEBUG>(
+                "Requested %dx%d not found. Using default mode.\n",
+                desiredWidth, desiredHeight
+            );
         }
 
-        // 프레임버퍼 정보 초기화
+        // 다시 FrameBuffer 초기화
         ribon::fb::initFrameBuffer();
         const auto fb = ribon::fb::getFramebuffer();
 
-        // 스크린 정보 구축
-        gScreen.width            = fb->width;
-        gScreen.height           = fb->height;
+        gScreen.width             = fb->width;
+        gScreen.height            = fb->height;
         gScreen.pixelsPerScanLine = fb->pixelsPerScanLine;
-        gScreen.format           = detail::detectPixelFormat();
+        gScreen.format = detail::detectPixelFormat(
+            gop->Mode->Info->PixelFormat
+        );
 
         ribon::IO::Print<ribon::IO::Tags::DEBUG>(
             "Screen initialized: %dx%d, fmt=%s\n",
@@ -124,6 +127,7 @@ namespace ribon::gfx {
         return true;
     }
 
+    
     const ScreenInfo& getScreen() {
         return gScreen;
     }

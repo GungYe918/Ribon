@@ -30,6 +30,7 @@ set(CMAKE_C_EXTENSIONS OFF)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_compile_options(-fshort-wchar)
+add_compile_options(-fno-stack-check)
 add_definitions(-DUEFI)
 
 include_directories(

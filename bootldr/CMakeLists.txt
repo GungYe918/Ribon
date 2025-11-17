@@ -29,11 +29,12 @@ target_link_libraries(RibonEFI
     ribon_efi
     ribon_multiboot
     ribon_fiasco
-    ribon_rt
     ribon_io
     ribon_console
     ribon_gfx
     ribon_arch
+    
+    ribon_rt
 )
 
 set_target_properties(RibonEFI PROPERTIES

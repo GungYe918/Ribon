@@ -2,6 +2,7 @@
 #include <Ribon/Console.hpp>
 #include <Ribon/Init.hpp>
 #include <Ribon/FrameBuffer.hpp>
+#include <Ribon/Memory.hpp>
 #include <stdarg.h>
 #include <stddef.h>
 
@@ -166,14 +167,15 @@ namespace ribon::console {
         using namespace ribon::font;
 
         auto fb = ribon::fb::getFramebuffer();
+        if (!fb) return;
 
         while (*wstr)
         {
             CHAR16 c = *wstr++;
 
-            // ----- 제어 문자 처리 -----
             if (c == L'\n') {
                 setCursor(0, getCursorY() + FONT_HEIGHT);
+                scrollIfNeeded();
                 continue;
             }
             if (c == L'\r') {
@@ -182,16 +184,56 @@ namespace ribon::console {
             }
             if (c == L'\t') {
                 setCursor(getCursorX() + FONT_WIDTH * 4, getCursorY());
+                scrollIfNeeded();
                 continue;
             }
 
-            // ----- 줄바꿈 처리 -----
+            // 줄 끝이면 자동 줄바꿈
             if (getCursorX() + FONT_WIDTH >= fb->width) {
                 setCursor(0, getCursorY() + FONT_HEIGHT);
+                scrollIfNeeded();
             }
 
-            // ----- 정상 글자 출력 -----
+            // 정상 출력
             drawChar(c);
+
+            scrollIfNeeded();
+        }
+    }
+
+    void Console::scrollIfNeeded() {
+        using namespace ribon::font;
+
+        auto fb = ribon::fb::getFramebuffer();
+        if (!fb) return;
+
+        // 커서 Y가 화면을 넘어가면 스크롤
+        if (getCursorY() + FONT_HEIGHT > (int)fb->height) {
+
+            int scrollHeight = FONT_HEIGHT;
+            int width = fb->width;
+            int height = fb->height;
+
+            uint32_t* buf = fb->base;
+            size_t lineBytes = width * sizeof(uint32_t);
+            size_t scrollBytes = scrollHeight * lineBytes;
+
+            // 1) 위로 memmove
+            mem::Memmove(
+                buf, 
+                (uint8_t*)buf + scrollBytes,
+                (height * lineBytes) - scrollBytes
+            );
+
+            // 2) 마지막 줄 clear
+            mem::Memset(
+                (uint8_t*)buf + ((height - scrollHeight) * lineBytes),
+                0,
+                scrollBytes
+            );
+
+            // 3) 커서를 한 칸 위로 맞춤
+            setCursor(0, height - FONT_HEIGHT);
         }
     }
 

@@ -2,8 +2,8 @@
 
 add_library(ribon_core STATIC
     core/log.cpp
-    core/memory.cpp
     core/utf16_string.cpp
+    core/init.cpp
 )
 
 add_library(ribon_guids STATIC
@@ -11,7 +11,8 @@ add_library(ribon_guids STATIC
 )
 
 add_library(ribon_rt STATIC
-    runtime/init.cpp
+    runtime/mem.cpp
+    runtime/stub.cpp
 )
 
 add_library(ribon_console STATIC
@@ -38,7 +39,9 @@ add_library(ribon_fiasco STATIC
 
 add_library(ribon_gfx STATIC
     gfx/framebuffer.cpp
+    gfx/draw.cpp
     gfx/screen.cpp
+    gfx/image.cpp
 )
 
 add_library(ribon_io STATIC

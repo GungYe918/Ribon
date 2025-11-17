@@ -1,8 +1,9 @@
 // include/Ribon/Memory.hpp
 
 #pragma once
+
+#include <Ribon/Init.hpp>
 #include <Uefi.h>
-#include "Init.hpp"
 
 // ------------------------------------------
 // Internal “allocation tracing” state
@@ -165,5 +166,34 @@ namespace ribon::mem {
         return freeM;
     }
 
+    /**
+     * @brief memcpy — 메모리 블록을 복사 (겹침 없음)
+     */
+    inline void Memcpy(void* dst, const void* src, UINTN size) {
+        auto bs = ribon::getBS();
+        if (!bs) return;
+        bs->CopyMem(dst, (void*)src, size);
+    }
+
+    /**
+     * @brief memmove — 메모리 블록을 복사 (겹침 포함 안전)
+     * UEFI CopyMem은 memmove처럼 겹치는 영역도 안전하게 처리한다.
+     */
+    inline void Memmove(void* dst, const void* src, UINTN size) {
+        auto bs = ribon::getBS();
+        if (!bs) return;
+        bs->CopyMem(dst, (void*)src, size);
+    }
+
+    /**
+     * @brief memset — 메모리 영역을 특정 값으로 채움
+     */
+    inline void Memset(void* dst, UINT8 value, UINTN size) {
+        auto bs = ribon::getBS();
+        if (!bs) return;
+        bs->SetMem(dst, size, value);
+    }
+
 
 } // namespace ribon::mem
+

@@ -4,6 +4,8 @@ extern "C" {
     #include <Uefi.h>
 }
 
+#include <stdint.h>
+
 namespace ribon::gfx {
 
     enum class PixelFormat {
@@ -21,24 +23,23 @@ namespace ribon::gfx {
     // 현재 스크린 정보 가져오기
     const ScreenInfo& getScreen();
 
-    // init: 원하는 해상도 요청
-    // width == height == 0이면 fallback (800x600)
+    /** @brief 원하는 해상도로 GOP 모드를 변경하고 FrameBuffer 초기화 */
     bool initScreen(UINTN desiredWidth, UINTN desiredHeight);
 
-    // 화면 전체 지우기
+    /** @brief 화면 지우기 (알파값 지원) */
     void clear(UINTN r, UINTN g, UINTN b, UINTN a);
 
-    // RGB값을 실제 픽셀 포맷(RGBA/BGRA)에 맞게 변환
-    inline UINT32 makePixel(UINT8 r, UINT8 g, UINT8 b, PixelFormat fmt)
-    {
-        if (fmt == PixelFormat::BGRA) {
-            return (255 << 24) | (b << 16) | (g << 8) | r;
-        } else {
-            return (255 << 24) | (r << 16) | (g << 8) | b;
-        }
-    }
-
-    // 빠른 inline clearPixel (프레임버퍼에 직접 접근)
+    /**
+     * @brief 픽셀 쓰기(알파 블렌딩 기반)
+     * @details ABI를 위해 함수명 유지. 내부는 drawPixelAlpha()로 통일됨.
+     */
     void putPixel(UINTN x, UINTN y, UINT8 r, UINT8 g, UINT8 b);
+    
+    // RGB값을 실제 픽셀 포맷(RGBA/BGRA)에 맞게 변환
+    static constexpr UINT32 makePixel(UINT8 r, UINT8 g, UINT8 b, PixelFormat fmt) {
+        return (fmt == PixelFormat::BGRA)
+            ? ((255u << 24) | (b << 16) | (g << 8) | r)
+            : ((255u << 24) | (r << 16) | (g << 8) | b);
+    }
 
 } // namespace ribon::gfx
