@@ -168,7 +168,7 @@ EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
     auto bs = ribon::getBS();
 
 
-    ribon::gfx::initScreen(800, 600);
+    ribon::gfx::initScreen(1200, 800);
     ribon::gfx::clear(255, 165, 160, 255);
 
     // TestUI();
@@ -202,10 +202,47 @@ EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
     menu->style.titleBar = true;
     menu->style.titleText = "Boot Options";
 
-    // 위젯 렌더링
     //Render(menu);
 
-    TestPrintAllModes();
+    // =====================================================================
+    // Label - Panel 아래
+    // =====================================================================
+    Label* label1 = createLabel(120, 150, "Ribon Bootloader UI Test");
+    label1->r = 255; label1->g = 230; label1->b = 230; label1->a = 255;
+
+    Render(label1);
+
+    // =====================================================================
+    // Button 1
+    // =====================================================================
+    Button* btn1 = createButton(120, 200, 160, 40, "Start OS");
+    btn1->r = 70; btn1->g = 120; btn1->b = 200; btn1->a = 255;
+    Render(btn1);
+
+    // =====================================================================
+    // Button 2
+    // =====================================================================
+    Button* btn2 = createButton(120, 250, 160, 40, "Settings");
+    btn2->r = 90; btn2->g = 90; btn2->b = 140; btn2->a = 255;
+
+    Render(btn2);
+
+    // =====================================================================
+    // Layout 테스트 (개별 위젯으로 렌더)
+    // =====================================================================
+    Layout* layout = createLayout(550, 100, 300, 200, LayoutType::Vertical);
+    Render(layout);
+
+    Label* layoutLabel = createLabel(560, 110, "Layout Test Area");
+    Render(layoutLabel);
+
+    Button* layoutBtn1 = createButton(560, 150, 200, 40, "Item A");
+    Render(layoutBtn1);
+
+    Button* layoutBtn2 = createButton(560, 200, 200, 40, "Item B");
+    Render(layoutBtn2);
+
+    //TestPrintAllModes();
 
 
 

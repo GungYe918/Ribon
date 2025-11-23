@@ -1,15 +1,34 @@
+// Ribon/ui/label.hpp
 #pragma once
 
 #include "widget.hpp"
-#include <Ribon/ui/coord/renderer.hpp>
 #include <Ribon/Print.hpp>
+#include <Ribon/Memory.hpp>
 
 namespace ribon::ui {
 
-    struct Label {
+    class Label : public Widget {
+    public:
         const char* text;
-        uint8_t r, g, b;
+        uint8_t r, g, b, a;
+
+        Label() {
+            type = WidgetType::Label;
+            text = nullptr;
+            r = g = b = 255;
+            a = 255;
+        }
     };
-    
+
+    inline Label* createLabel(int x, int y, const char* txt) {
+        Label* l = new Label();
+        if (!l) return nullptr;
+
+        l->rect = { x, y, 0, 0 };  // width/height는 텍스트 길이에 따라 자동
+        l->text = txt;
+        l->isVisible = true;
+
+        return l;
+    }
 
 } // namespace ribon::ui

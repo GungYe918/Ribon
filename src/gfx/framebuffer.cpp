@@ -3,7 +3,7 @@
 #include <Ribon/Init.hpp>
 #include <Ribon/Print.hpp>
 
-namespace ribon::fb {  
+namespace ribon::fb {
 
     static FrameBufferInfo gFB = {};
 
@@ -15,7 +15,6 @@ namespace ribon::fb {
             );
             return false;
         }
-
         gFB.base = (UINT32*)gop->Mode->FrameBufferBase;
         gFB.width = gop->Mode->Info->HorizontalResolution;
         gFB.height = gop->Mode->Info->VerticalResolution;
@@ -30,51 +29,62 @@ namespace ribon::fb {
     }
 
     // ---------------------------------------------------------
-    // RAW 픽셀 쓰기 (경계 검사 없음)
+    // 베이스 픽셀 read/write
     // ---------------------------------------------------------
-    inline void writePixelRaw(UINTN x, UINTN y, UINT32 rgba)
-    {
-        UINTN idx = y * gFB.pixelsPerScanLine + x;
+
+    bool inBounds(int x, int y) {
+        if (!gFB.base)          return false;
+        if (x < 0 || y < 0)     return false;
+        if ((UINTN)x >= gFB.width)  return false;
+        if ((UINTN)y >= gFB.height) return false;
+        return true;
+    }
+
+    UINT32 readPixel(int x, int y) {
+        UINTN idx = (UINTN)y * gFB.pixelsPerScanLine + (UINTN)x;
+        return gFB.base[idx];
+    }
+
+    void writePixel(int x, int y, UINT32 rgba) {
+        UINTN idx = (UINTN)y * gFB.pixelsPerScanLine + (UINTN)x;
         gFB.base[idx] = rgba;
     }
 
-
-    // ---------------------------------------------------------
-    // 안전한 픽셀 쓰기
-    // ---------------------------------------------------------
-    void writePixelSafe(UINTN x, UINTN y, UINT32 rgba)
-    {
-        if (x >= gFB.width || y >= gFB.height)
-            return;
-        writePixelRaw(x, y, rgba);
+    void writePixelClamped(int x, int y, UINT32 rgba) {
+        if (!inBounds(x, y)) return; // 경계 검사 실패
+        writePixel(x, y, rgba);
     }
 
+    // ---------------------------------------------------------
+    // 과거 ABI 유지용 래퍼
+    // ---------------------------------------------------------
 
-    // ---------------------------------------------------------
-    // 화면 전체 Clear (RGB)
-    // ---------------------------------------------------------
-    void clear(UINT8 r, UINT8 g, UINT8 b)
-    {
-        // UEFI GOP: 32bit pixel = 0xAABBGGRR
-        // A는 대부분 무시됨(255 추천)
-        UINT32 color = (255 << 24) | (b << 16) | (g << 8) | r;
+    void writePixelRaw(UINTN x, UINTN y, UINT32 rgba) {
+        writePixel((int)x, (int)y, rgba);
+    }
+
+    void writePixelSafe(UINTN x, UINTN y, UINT32 rgba) {
+        writePixelClamped((int)x, (int)y, rgba);
+    }
+
+    // 화면 전체 clear
+    void clear(UINT8 r, UINT8 g, UINT8 b) {
+        // UEFI GOP: 32bit pixel = 0xAABBGGRR (리틀엔디안 기준)
+        UINT32 color = (255u << 24) | (b << 16) | (g << 8) | r;
+
+        if (!gFB.base) return;  // gFB base 주소 없음
 
         UINTN totalPixels = gFB.pixelsPerScanLine * gFB.height;
 
-        for (UINTN i = 0; i < totalPixels; i++)
+        for (UINTN i = 0; i < totalPixels; i++) {
             gFB.base[i] = color;
+        }
     }
 
-
-    // ---------------------------------------------------------
-    // Framebuffer memory dump
-    // ---------------------------------------------------------
-    void debugDump(UINTN count)
-    {
+    void debugDump(UINTN count) {
         ribon::IO::Print<ribon::IO::Tags::DEBUG>("FB Dump (first %d dwords):\n", count);
 
-        for (UINTN i = 0; i < count; i++)
-        {
+        for (UINTN i = 0; i < count; i++) {
             ribon::IO::Print<ribon::IO::Tags::DEBUG>(
                 "[%04d] 0x%08x\n",
                 i,
@@ -83,12 +93,7 @@ namespace ribon::fb {
         }
     }
 
-
-    // ---------------------------------------------------------
-    // Framebuffer info debug 출력
-    // ---------------------------------------------------------
-    void debugPrintInfo()
-    {
+    void debugPrintInfo() {
         ribon::IO::Print<ribon::IO::Tags::DEBUG>(
             "Framebuffer Info:\n"
             "  Resolution: %d x %d\n"
@@ -101,6 +106,4 @@ namespace ribon::fb {
         );
     }
 
-
-    
 } // namespace ribon::fb

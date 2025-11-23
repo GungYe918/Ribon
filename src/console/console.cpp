@@ -201,6 +201,62 @@ namespace ribon::console {
         }
     }
 
+    // ------------------------------------------------------
+    // 좌표 기반 FrameBuffer 텍스트 출력
+    // ------------------------------------------------------
+    void Console::writeAt(int x, int y, const CHAR16* wstr)
+    {
+        if (!wstr) return;
+
+        if (currentMode == TextMode::SimpleText) {
+            // UEFI 텍스트 모드는 좌표가 픽셀이 아니므로, 우선 순차 출력으로 degrade
+            writeSimpleText(wstr);
+            return;
+        }
+
+        auto fb = ribon::fb::getFramebuffer();
+        if (!fb) return;
+
+        using namespace ribon::font;
+
+        const int savedX = getCursorX();
+        const int savedY = getCursorY();
+
+        // FBFont의 커서는 이미 픽셀 좌표를 쓰고 있으므로 그대로 사용
+        setCursor(x, y);
+
+        const CHAR16* p = wstr;
+        while (*p) {
+            CHAR16 c = *p++;
+
+            if (c == L'\n') {
+                setCursor(0, getCursorY() + FONT_HEIGHT);
+                scrollIfNeeded();
+                continue;
+            }
+            if (c == L'\r') {
+                setCursor(0, getCursorY());
+                continue;
+            }
+            if (c == L'\t') {
+                setCursor(getCursorX() + FONT_WIDTH * 4, getCursorY());
+                scrollIfNeeded();
+                continue;
+            }
+
+            if (getCursorX() + FONT_WIDTH >= (int)fb->width) {
+                setCursor(0, getCursorY() + FONT_HEIGHT);
+                scrollIfNeeded();
+            }
+
+            drawChar(c);
+            scrollIfNeeded();
+        }
+
+        setCursor(savedX, savedY);
+    }
+
+
     void Console::scrollIfNeeded() {
         using namespace ribon::font;
 

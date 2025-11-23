@@ -12,10 +12,12 @@ namespace ribon::ui {
     enum class WidgetType : uint8_t {
         Panel,
         Label,
-        Button
+        Button,
+        Layout
     };
 
-    struct Widget {
+    class Widget {
+    public: 
         WidgetType type;
         ribon::coord::Rect rect;
 

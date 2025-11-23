@@ -1,7 +1,9 @@
 // src/console/font.cpp
 
 #include "font.hpp"
+#include <Ribon/Console.hpp>
 #include <Ribon/FrameBuffer.hpp>
+
 
 namespace ribon::font::detail {
 
@@ -70,15 +72,31 @@ namespace ribon::font {
         const UINT8* glyph = &font_bytes[glyphIndex * FONT_HEIGHT];
 
         auto fb = ribon::fb::getFramebuffer();
-        const UINT32 white = 0xFFFFFFFF;
+        if (!fb) return;
+
+        // Console에서 현재 텍스트 색 가져오기
+        UINT8 r,g,b,a;
+        auto con = ribon::console::getConsole();
+        if (con) con->getColor(r,g,b,a);
+        else { r=g=b=255; a=255; }
+
+        UINT32 color =
+            (UINT32(a) << 24) |
+            (UINT32(r) << 16) |
+            (UINT32(g) << 8 ) |
+            (UINT32(b));
 
         for (UINTN row = 0; row < FONT_HEIGHT; row++) {
             UINT8 bits = glyph[row];
 
             for (UINTN col = 0; col < FONT_WIDTH; col++) {
-                UINT8 mask = 1 << (7 - col);  // col=0 -> MSB
+                UINT8 mask = 1 << (7 - col);  
                 if (bits & mask) {
-                    fb::writePixelSafe(cursorX + col, cursorY + row, white);
+                    fb::writePixelSafe(
+                        cursorX + col,
+                        cursorY + row,
+                        color
+                    );
                 }
             }
         }

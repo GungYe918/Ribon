@@ -6,6 +6,7 @@ extern "C" {
 
 #include <stdint.h>
 
+
 namespace ribon::gfx {
 
     enum class PixelFormat {
@@ -40,6 +41,24 @@ namespace ribon::gfx {
         return (fmt == PixelFormat::BGRA)
             ? ((255u << 24) | (b << 16) | (g << 8) | r)
             : ((255u << 24) | (r << 16) | (g << 8) | b);
+    }
+
+    // FrameBuffer에 저장된 32bit 픽셀을 RGBA로 변환
+    static constexpr void unpackPixel(
+        UINT32 px, PixelFormat fmt,
+        UINT8& r, UINT8& g, UINT8& b, UINT8& a
+    ) {
+        a = static_cast<UINT8>((px >> 24) & 0xFFu);
+
+        if (fmt == PixelFormat::BGRA) {
+            b = static_cast<UINT8>((px >> 16) & 0xFFu);
+            g = static_cast<UINT8>((px >> 8)  & 0xFFu);
+            r = static_cast<UINT8>(px & 0xFFu);
+        } else {
+            r = static_cast<UINT8>((px >> 16) & 0xFFu);
+            g = static_cast<UINT8>((px >> 8)  & 0xFFu);
+            b = static_cast<UINT8>(px & 0xFFu);
+        }
     }
 
 } // namespace ribon::gfx

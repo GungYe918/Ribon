@@ -41,7 +41,6 @@ namespace ribon::gfx {
     /**
      * @brief 이미 RGBA32 포맷으로 준비된 픽셀 버퍼를
      *        알파 블렌딩하여 화면에 그린다.
-     *        (PNG 렌더러가 완성되면 이 함수를 사용)
      *
      * @param px RGBA8888 배열 (row-major)
      * @param sx 화면에 찍을 X

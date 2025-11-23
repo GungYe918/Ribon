@@ -21,19 +21,29 @@ namespace ribon::fb {
     // Framebuffer 정보 가져오기
     const FrameBufferInfo* getFramebuffer();
 
+    // ---------------------------------------------------------
+    // 베이스 픽셀 read/write (Coord 좌표계 적용)
+    // ---------------------------------------------------------
+
+    /** @brief 현재 FrameBuffer 기준 (x,y)가 유효한지 검사 */
+    bool inBounds(int x, int y);
+
+    /** @brief 단일 픽셀 읽기 (경계 검사 없음, inBounds 를 호출한 뒤 사용) */
+    UINT32 readPixel(int x, int y);
+
+    /** @brief 단일 픽셀 쓰기 (경계 검사 미포함)*/
+    void writePixel(int x, int y, UINT32 rgba);
+
+    /** @brief 단일 픽셀 쓰기 (경계 검사 포함) */
+    void writePixelClamped(int x, int y, UINT32 rgba);
+
     /** @brief 단일 픽셀 RAW 쓰기
-     *  경계 검사 없음(최대한 빠르게 수행)
+     *  경계 검사 없음(최대한 빠르게 수행) - 과거 ABI 유지용 래퍼
      */
     void writePixelRaw(UINTN x, UINTN y, UINT32 rgba);
 
     /** @brief 안전한 픽셀 쓰기(범위 체크 포함) */
     void writePixelSafe(UINTN x, UINTN y, UINT32 rgba);
-
-    
-    /**
-     * Utils
-     */
-    
 
     /** @brief 전체 화면 Clear (RGB 8비트) */
     void clear(UINT8 r, UINT8 g, UINT8 b);

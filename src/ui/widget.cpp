@@ -1,11 +1,17 @@
 // src/ui/widget.cpp
 #include <Ribon/ui/widget.hpp>
 #include <Ribon/ui/panel.hpp>
+#include <Ribon/ui/button.hpp>
+#include <Ribon/ui/layout.hpp>
+#include <Ribon/ui/label.hpp>
 
 #include <Ribon/Draw.hpp>
 #include <Ribon/Print.hpp>
 #include <Ribon/FrameBuffer.hpp>
 #include <Ribon/Math.hpp>
+#include <Ribon/Console.hpp>
+
+#include "../console/font.hpp"
 
 namespace ribon::ui::detail {
 
@@ -56,7 +62,7 @@ namespace ribon::ui::detail {
                 float diff = (float)r - dist;   // r보다 얼마나 안쪽인지
 
                 if (diff <= 0.0f) {
-                    // 원 바깥 → 안 칠함
+                    // 원 바깥 -> 안 칠함
                     continue;
                 }
 
@@ -64,7 +70,7 @@ namespace ribon::ui::detail {
                 if (diff >= 1.0f) {
                     a2 = A;                    // 완전 내부
                 } else {
-                    a2 = (uint8_t)(A * diff);  // 경계 근처 → 알파 스케일
+                    a2 = (uint8_t)(A * diff);  // 경계 근처 -> 알파 스케일
                 }
 
                 // TL
@@ -136,6 +142,24 @@ namespace ribon::ui::detail {
         }
     }
 
+    static void applyLayout(const Layout& ly) {
+        int cursor = 0;
+
+        for (size_t i = 0; i < ly.childCount; ++i) {
+            Widget* c = ly.children[i];
+
+            if (ly.layout == LayoutType::Vertical) {
+                c->rect.x = ly.rect.x;
+                c->rect.y = ly.rect.y + cursor;
+                cursor += c->rect.height + ly.spacing;
+            } else {
+                c->rect.x = ly.rect.x + cursor;
+                c->rect.y = ly.rect.y;
+                cursor += c->rect.width + ly.spacing;
+            }
+        }
+    }
+
 
 } // namespace ribon::ui::detail
 
@@ -144,121 +168,143 @@ namespace ribon::ui {
     void drawPanel(const Widget& w) {
         using namespace ribon;
 
-        const Panel&      p  = static_cast<const Panel&>(w);
+        // ---------------------------------------------------------
+        // [중요] SimpleText 모드는 UI 자체를 렌더할 수 없다
+        // ---------------------------------------------------------
+        auto con = console::getConsole();
+        if (!con || con->mode() != console::TextMode::FBFont) {
+            IO::Print<IO::Tags::DEBUG>(
+                "[UI] Cannot render Panel: Console is not in FBFont mode.\n"
+            );
+            return;
+        }
+
+        const Panel& p  = static_cast<const Panel&>(w);
         const PanelStyle& st = p.style;
 
-        const int x   = w.rect.x;
-        const int y   = w.rect.y;
-        const int wdt = w.rect.width;
-        const int hgt = w.rect.height;
-        const int r   = st.radius;
+        int x   = w.rect.x;
+        int y   = w.rect.y;
+        int wdt = w.rect.width;
+        int hgt = w.rect.height;
+        int r   = st.radius;
 
-        // ----------------------------------------------------
-        // 1) Shadow : 오른쪽 아래로 더 크게 이동
-        // ----------------------------------------------------
+        // Shadow
         if (st.shadow) {
             detail::drawRoundedRectAA(
-                x + 6, y + 6,   // 이전 3,3 → 6,6
+                x + 6, y + 6,
                 wdt, hgt, r,
                 0, 0, 0, st.shadow_a
             );
         }
 
-        // ----------------------------------------------------
-        // 2) Panel 본체 배경
-        // ----------------------------------------------------
+        // Body
         detail::drawRoundedRectAA(
             x, y, wdt, hgt, r,
             st.bg_r, st.bg_g, st.bg_b, st.bg_a
         );
 
-        // ----------------------------------------------------
-        // 3) Title Bar (있다면)
-        //    -> 윗쪽 코너까지 밝은 회색으로 채워줌
-        // ----------------------------------------------------
+        // Title Bar
         if (st.titleBar) {
-            const int tH = 24;
+            const int titleH = 24;
 
             detail::drawTopRoundedBarAA(
-                x, y, wdt, tH, r,
+                x, y, wdt, titleH, r,
                 st.title_r, st.title_g, st.title_b, st.title_a
             );
 
-            // 나중에 UI 전용 Print 모드로 제목을 여기 안에 렌더하면 됨.
-        }
+            // -----------------------------------------------
+            // Title 텍스트 출력 (FREE_RAW)
+            // -----------------------------------------------
+            if (st.titleText && st.titleText[0] != '\0') {
 
-        // ----------------------------------------------------
-        // 4) Border (맨 마지막, 내부 1px 라인만)
-        // ----------------------------------------------------
-        /* NOPE
-        if (st.border && r == 0) {
-            // radius 없는 박스에만 보더 적용
-            gfx::drawRectAlpha(
-                x, y, wdt, 1,
-                st.border_r, st.border_g, st.border_b, st.border_a
-            );
-            gfx::drawRectAlpha(
-                x, y + hgt - 1, wdt, 1,
-                st.border_r, st.border_g, st.border_b, st.border_a
-            );
-            gfx::drawRectAlpha(
-                x, y, 1, hgt,
-                st.border_r, st.border_g, st.border_b, st.border_a
-            );
-            gfx::drawRectAlpha(
-                x + wdt - 1, y, 1, hgt,
-                st.border_r, st.border_g, st.border_b, st.border_a
-            );
+                // 텍스트 위치 계산: 좌측 12px 패딩
+                int tx = x + 12;
+
+                // 세로 가운데 정렬
+                int ty = y + (titleH - (int)ribon::font::FONT_HEIGHT) / 2;
+
+                ribon::str::Utf16String title16(st.titleText);
+
+                IO::FreePrintRawAt(tx, ty, title16.c_str());
+            }
         }
-        */
-    
     }
 
     void drawLabel(const Widget& w) {
         using namespace ribon;
-        
-        IO::Print("%s", "Label");
-    }
 
-    void drawButton(const Widget& w) {
-        using namespace ribon;
-        
-        const int x = w.rect.x;
-        const int y = w.rect.y;
-        const int wdt = w.rect.width;
-        const int hgt = w.rect.height;
+        auto con = ribon::console::getConsole();
+        if (!con) return;
 
-        // 약간 어두운 회색 버튼 배경
-        gfx::drawRectAlpha(
-            x, y, wdt, hgt,
-            120, 120, 120, 255
+        const Label& L = static_cast<const Label&>(w);
+        if (!L.text) return;
+
+        // 텍스트 UTF16 변환
+        ribon::str::Utf16String u16(L.text);
+
+        // 색상 적용
+        con->setColor(L.r, L.g, L.b, L.a);
+
+        // 좌표 기반 출력
+        IO::FreePrintRawAt(
+            w.rect.x,
+            w.rect.y,
+            u16.c_str()
         );
 
-        // 텍스트 출력(중앙 정렬 X, 단순 offset)
-        IO::Print("%s", "Button");
+        // 색상 리셋
+        con->resetColor();
+    }
+
+    
+    void drawButton(const Widget& w) {
+        using namespace ribon;
+
+        auto& B = static_cast<const Button&>(w);
+
+        int x = w.rect.x;
+        int y = w.rect.y;
+        int wdt = w.rect.width;
+        int hgt = w.rect.height;
+
+        uint8_t R, G, Bc, A;
+
+        if (B.isPressed) {
+            R = B.pr; G = B.pg; Bc = B.pb; A = B.pa;
+        } else if (B.isHovered) {
+            R = B.hr; G = B.hg; Bc = B.hb; A = B.ha;
+        } else {
+            R = B.r; G = B.g; Bc = B.b; A = B.a;
+        }
+
+        gfx::drawRectAlpha(x, y, wdt, hgt, R, G, Bc, A);
+
+        if (B.text) {
+            ribon::str::Utf16String u16(B.text);
+
+            int tx = x + (wdt - (int)ribon::font::FONT_WIDTH * (int)u16.length()) / 2;
+            int ty = y + (hgt - (int)ribon::font::FONT_HEIGHT) / 2;
+
+            IO::FreePrintRawAt(tx, ty, u16.c_str());
+        }
     }
 
     void drawWidget(const Widget& w) {
         if (!w.isVisible) return;
 
+        // Layout은 먼저 배치 처리
+        if (w.type == WidgetType::Layout)
+            detail::applyLayout(static_cast<const Layout&>(w));
+
         switch (w.type) {
-            case WidgetType::Panel:
-                drawPanel(w);
-                break;
-
-            case WidgetType::Label:
-                drawLabel(w);
-                break;
-
-            case WidgetType::Button:
-                drawButton(w);
-                break;
+            case WidgetType::Panel:  drawPanel(w);  break;
+            case WidgetType::Label:  drawLabel(w);  break;
+            case WidgetType::Button: drawButton(w); break;
+            case WidgetType::Layout: /* Layout은 시각 요소 없음 */ break;
         }
 
-        // child rendering
-        for (size_t i = 0; i < w.childCount; ++i) {
+        for (size_t i = 0; i < w.childCount; ++i)
             drawWidget(*w.children[i]);
-        }
     }
 
 

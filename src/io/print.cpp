@@ -148,11 +148,14 @@ namespace ribon::IO::detail {
      * @brief FreePrintRawAt 내부 동작
      */
     void InternalFreePrint(int x, int y, const CHAR16* raw) {
-        
+        if (!raw) return;
+
+        auto con = ribon::console::getConsole();
+        if (!con) return;
+
+        // Console이 모드에 따라 적절히 처리 (FBFont 모드에서는 픽셀 좌표 기반)
+        con->writeAt(x, y, raw);
     }
-
-
-
 
 } // namespace ribon::IO::detail
 

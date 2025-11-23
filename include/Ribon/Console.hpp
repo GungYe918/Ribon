@@ -46,8 +46,32 @@ namespace ribon::console {
         /** @brief 화면 초기화 */
         void clear();
 
+        /**
+         * @brief FrameBuffer 텍스트 모드 기준, 화면 픽셀 좌표(x,y)에 raw UTF-16 문자열을 출력
+         *
+         * SimpleText 모드에서는 좌표 개념이 없어, best-effort로 순차 출력만 수행한다.
+         */
+        void writeAt(int x, int y, const CHAR16* wstr);
+
+        /**
+         * @brief 폰트 색상 변경 
+         */
+
+        void setColor(UINT8 r, UINT8 g, UINT8 b, UINT8 a) {
+            fgR = r; fgG = g; fgB = b; fgA = a;
+        }
+
+        void resetColor() {
+            fgR = 255; fgG = 255; fgB = 255; fgA = 255;
+        }
+
+        void getColor(UINT8& r, UINT8& g, UINT8& b, UINT8& a) const {
+            r = fgR; g = fgG; b = fgB; a = fgA;
+        }
+
     private:
-        TextMode currentMode = TextMode::SimpleText;
+        TextMode currentMode = TextMode::FBFont;
+        UINT8 fgR = 255, fgG = 255, fgB = 255, fgA = 255;
 
         // 내부 헬퍼 함수
         void writeSimpleText(const CHAR16* wstr);

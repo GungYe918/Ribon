@@ -7,6 +7,7 @@
 #include "absolute.hpp"
 #include "relative.hpp"
 
+#include <Ribon/Screen.hpp>   // 화면 크기 정보 사용
 
 /**
  * @file Transform.hpp
@@ -32,23 +33,30 @@ namespace ribon::coord::transform {
      * @param rel RelativePos 구조체
      * @return 실제 화면 Point
      *
-     * 부모가 nullptr이면 (0,0,width,height)를 가정해야 한다.
-     * 여기서는 width/height를 모르는 상태이므로 (0,0)만 반환.
+     * 부모가 nullptr이면 화면 전체(Rect(0,0,screen.width,screen.height))를 기준으로 본다.
      */
     inline Point toPoint(const RelativePos& rel) {
-        if (!rel.parent) {
-            // 부모가 없는 경우, 화면 전체를 parent로 취급하려면
-            // UI 시스템이 override 해야 한다.
-            return Point{
-                static_cast<int>(rel.anchorX * 0) + rel.offsetX,
-                static_cast<int>(rel.anchorY * 0) + rel.offsetY
-            };
+        int parentX = 0;
+        int parentY = 0;
+        int parentW = 0;
+        int parentH = 0;
+
+        if (rel.parent) {
+            const Rect& p = *rel.parent;
+            parentX = p.x;
+            parentY = p.y;
+            parentW = p.width;
+            parentH = p.height;
+        } else {
+            const auto& scr = ::ribon::gfx::getScreen();
+            parentX = 0;
+            parentY = 0;
+            parentW = static_cast<int>(scr.width);
+            parentH = static_cast<int>(scr.height);
         }
 
-        const Rect& p = *rel.parent;
-
-        int baseX = p.x + static_cast<int>(p.width  * rel.anchorX);
-        int baseY = p.y + static_cast<int>(p.height * rel.anchorY);
+        int baseX = parentX + static_cast<int>(parentW * rel.anchorX);
+        int baseY = parentY + static_cast<int>(parentH * rel.anchorY);
 
         return Point {
             baseX + rel.offsetX,
@@ -57,7 +65,7 @@ namespace ribon::coord::transform {
     }
 
     /**
-     * @brief 부모 Rect와 AbsolutePos를 조합하여 Rect 반환 (위젯 박스 생성용)
+     * @brief AbsolutePos -> Rect
      */
     inline Rect toRect(const AbsolutePos& abs, int width, int height) {
         return Rect {
@@ -69,7 +77,7 @@ namespace ribon::coord::transform {
     }
 
     /**
-     * @brief 부모 Rect와 RelativePos로 실제 위젯 Rect 계산
+     * @brief RelativePos -> Rect
      */
     inline Rect toRect(const RelativePos& rel, int width, int height) {
         Point p = toPoint(rel);

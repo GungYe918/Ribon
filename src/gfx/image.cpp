@@ -4,15 +4,6 @@
 #include <Ribon/base/stb_config.h>
 #include <Ribon/base/stb_image.h>
 
-namespace ribon::gfx::detail {
-
-    static constexpr uint8_t blend8(uint8_t src, uint8_t dst, uint8_t alpha) {
-        // alpha = 0~255
-        return (uint8_t)(((src * alpha) + (dst * (255 - alpha))) / 255);
-    }
-
-} // namespace ribon::gfx::detail
-
 namespace ribon::gfx {
 
     void Image::unload() {
@@ -113,52 +104,22 @@ namespace ribon::gfx {
         return img;
     }
 
+
     void drawImage(int dstX, int dstY, const Image& image) {
         if (!image.data || image.width == 0 || image.height == 0) {
             return;
         }
 
-        auto fb = ribon::fb::getFramebuffer();
-        if (!fb) return;
-
-        uint8_t* fbBase = (uint8_t*)fb->base;
-
-        for (int y = 0; y < image.height; y++) {
-            int fbY = dstY + y;
-            if (fbY < 0 || fbY >= (int)fb->height)
-                continue;
-
-            for (int x = 0; x < image.width; x++) {
-                int fbX = dstX + x;
-                if (fbX < 0 || fbX >= (int)fb->width)
-                    continue;
-
-                // source pixel
-                int si = (y * image.width + x) * 4;
-                uint8_t sR = image.data[si + 0];
-                uint8_t sG = image.data[si + 1];
-                uint8_t sB = image.data[si + 2];
-                uint8_t sA = image.data[si + 3];
-
-                // framebuffer pixel 위치 계산
-                uint64_t pixelIndex = fbY * fb->pixelsPerScanLine + fbX;
-                uint8_t* dstPx = fbBase + pixelIndex * 4;
-
-                uint8_t dR = dstPx[2];
-                uint8_t dG = dstPx[1];
-                uint8_t dB = dstPx[0];
-
-                // 알파 블렌딩
-                uint8_t r = detail::blend8(sR, dR, sA);
-                uint8_t g = detail::blend8(sG, dG, sA);
-                uint8_t b = detail::blend8(sB, dB, sA);
-
-                // BGR0 또는 BGRA32 프레임버퍼라고 가정
-                dstPx[0] = b;
-                dstPx[1] = g;
-                dstPx[2] = r;
-            }
-        }
+        // stb_image 결과는 RGBA8888 바이트 배열
+        // drawImageRGBA는 RGBA8888(R,G,B,A) 버퍼로 동작하도록 구현됨
+        drawImageRGBA(
+            reinterpret_cast<const uint32_t*>(image.data),
+            dstX,
+            dstY,
+            image.width,
+            image.height
+        );
     }
+
 
 } // namespace ribon::gfx
