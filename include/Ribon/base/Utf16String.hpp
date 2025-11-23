@@ -19,6 +19,12 @@ namespace ribon::str {
         Utf16String(Utf16String&& other) noexcept;
         Utf16String& operator=(Utf16String&& other) noexcept;
 
+        Utf16String() : buf(nullptr), len(0) {
+            allocate(1);
+            if (buf) buf[0] = 0;
+        }
+
+
         ~Utf16String();
 
 

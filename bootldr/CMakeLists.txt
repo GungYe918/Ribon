@@ -32,6 +32,7 @@ target_link_libraries(RibonEFI
     ribon_io
     ribon_console
     ribon_gfx
+    ribon_ui
     ribon_arch
     
     ribon_rt

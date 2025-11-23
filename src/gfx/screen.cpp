@@ -1,4 +1,4 @@
-// src/gfx/screen.hpp
+// src/gfx/screen.cpp
 #include <Ribon/Screen.hpp>
 #include <Ribon/Draw.hpp>
 #include <Ribon/FrameBuffer.hpp>

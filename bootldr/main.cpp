@@ -9,6 +9,9 @@
 
 #include <Ribon/Ui.hpp>
 
+
+#include <Ribon/Ui.hpp>
+
 void TestUI() {
     {
         using namespace ribon;
@@ -101,6 +104,52 @@ void TestImage() {
     }
 }
 
+void TestPrintAllModes()
+{
+    using namespace ribon;
+
+    auto fb = fb::getFramebuffer();
+    int centerX = fb->width / 2;
+    int centerY = fb->height / 2;
+
+    // ---------------------------------------------
+    // 1) 기본 Print(fmt)
+    // ---------------------------------------------
+    IO::Print("Print Engine Test (Default Print : 1)\n");
+
+    // ---------------------------------------------
+    // 2) UTF16 모드
+    // ---------------------------------------------
+    IO::Print<IO::Tags::UTF16>(
+        "Print Engine Test (UTF16 Mode : 2)\r\n"
+    );
+
+    // ---------------------------------------------
+    // 3) RAW 모드
+    // ---------------------------------------------
+    IO::Print<IO::Tags::RAW>(
+        "Print Engine Test (RAW Mode : 3)\n"
+    );
+
+    // ---------------------------------------------
+    // 4) DEBUG 모드
+    // ---------------------------------------------
+    IO::Print<IO::Tags::DEBUG>(
+        "Print Engine Test (DEBUG Mode : 4)\n"
+    );
+
+    // ---------------------------------------------
+    // 5) FREE_RAW 모드 (XY 지정 출력)
+    // 화면 정중앙에 출력
+    // ---------------------------------------------
+    {
+        ribon::str::Utf16String u16("Print Engine Test (FREE_RAW Mode : 5)");
+
+        // FREE_RAW는 좌표를 외부에서 지정하는 방식
+        IO::FreePrintRawAt(centerX - 200, centerY, u16.c_str());
+    }
+}
+
 extern "C"
 EFI_STATUS
 EFIAPI
@@ -119,10 +168,10 @@ EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
     auto bs = ribon::getBS();
 
 
-    ribon::gfx::initScreen(1920, 1080);
+    ribon::gfx::initScreen(800, 600);
     ribon::gfx::clear(255, 165, 160, 255);
 
-    TestUI();
+    // TestUI();
     
 
     // 배너 출력
@@ -138,7 +187,28 @@ EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
         "GOP loaded successfully.\r\n"
     );
     
-    TestImage();
+    //TestImage();
+
+    using namespace ribon::ui;
+    // Panel 생성
+    Panel* menu = createPanel(100, 100, 400, 300);
+
+    menu->style.bg_r = 30;
+    menu->style.bg_g = 30;
+    menu->style.bg_b = 30;
+    menu->style.bg_a = 255;
+
+    menu->style.radius = 12;
+    menu->style.titleBar = true;
+    menu->style.titleText = "Boot Options";
+
+    // 위젯 렌더링
+    //Render(menu);
+
+    TestPrintAllModes();
+
+
+
     
     // -----------------------------------
     //   5초 대기 (UEFI Stall 사용)

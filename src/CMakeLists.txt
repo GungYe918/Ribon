@@ -47,3 +47,7 @@ add_library(ribon_gfx STATIC
 add_library(ribon_io STATIC
     io/print.cpp
 )
+
+add_library(ribon_ui STATIC
+    ui/widget.cpp
+)

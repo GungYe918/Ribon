@@ -1,3 +1,4 @@
+// src/gfx/draw.cpp
 #include <Ribon/Draw.hpp>
 #include <Ribon/FrameBuffer.hpp>
 
@@ -38,27 +39,30 @@ namespace ribon::gfx {
             y >= (int)fb->height)
             return;
 
+        // 완전 불투명: 그냥 덮어쓰기
         if (a == 255) {
-            // 완전 불투명: 그냥 덮어쓰기
             uint32_t color = (255u << 24) | (r << 16) | (g << 8) | b;
             detail::writePixelUnsafe(x, y, color);
             return;
         }
 
-        if (a == 0) return; // 완전 투명
+        // 완전 투명: 아무 것도 안 함
+        if (a == 0) return;
 
         // 기존 픽셀 읽기
         uint32_t dst = detail::readPixelUnsafe(x, y);
 
         uint8_t dr = (dst >> 16) & 0xFF;
-        uint8_t dg = (dst >> 8) & 0xFF;
-        uint8_t db = dst & 0xFF;
+        uint8_t dg = (dst >> 8)  & 0xFF;
+        uint8_t db =  dst        & 0xFF;
 
-        float sa = a / 255.0f;
+        // 알파 블렌딩
+        float sa  = a / 255.0f;        // source alpha
+        float inv = 1.0f - sa;         // 1 - alpha
 
-        uint8_t rr = (uint8_t)(r * sa + dr * (1 - a));
-        uint8_t rg = (uint8_t)(g * sa + dg * (1 - a));
-        uint8_t rb = (uint8_t)(b * sa + db * (1 - a));
+        uint8_t rr = (uint8_t)(r * sa + dr * inv + 0.5f);
+        uint8_t rg = (uint8_t)(g * sa + dg * inv + 0.5f);
+        uint8_t rb = (uint8_t)(b * sa + db * inv + 0.5f);
 
         uint32_t out = (255u << 24) | (rr << 16) | (rg << 8) | rb;
         detail::writePixelUnsafe(x, y, out);

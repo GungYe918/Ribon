@@ -201,7 +201,7 @@ def main():
     else:
         raise RuntimeError("지원되지 않는 OS")
 
-    print(f"\n[OK] 이미지 생성 완료 → {IMG_FILE}")
+    print(f"\n[OK] 이미지 생성 완료 -> {IMG_FILE}")
 
 
 if __name__ == "__main__":

@@ -197,3 +197,71 @@ namespace ribon::mem {
 
 } // namespace ribon::mem
 
+
+
+// ------------------------------------------------------------
+// 전역 new / delete 연산자
+// ------------------------------------------------------------
+
+inline void* operator new(size_t size) {
+    using namespace ribon::mem;
+
+    void* buf = nullptr;
+
+    // AllocatePool은 EFI_STATUS를 리턴하므로 래핑 필요
+    EFI_STATUS st = AllocatePool(EfiLoaderData, size, &buf);
+    if (EFI_ERROR(st) || !buf) {
+        // UEFI에서 new 실패 → 반드시 nullptr 대신 예외 대신 abort 또는 nullptr
+        return nullptr;
+    }
+
+    g_allocCount++;
+    g_allocBytes += size;
+    return buf;
+}
+
+inline void operator delete(void* ptr) noexcept {
+    using namespace ribon::mem;
+
+    if (!ptr) return;
+
+    // 크기를 추적할 방법이 없으므로 freeBytes는 증가시키지 않음
+    g_freeCount++;
+
+    FreePool(ptr);
+}
+
+inline void* operator new[](size_t size) {
+    using namespace ribon::mem;
+
+    void* buf = nullptr;
+    EFI_STATUS st = AllocatePool(EfiLoaderData, size, &buf);
+
+    if (EFI_ERROR(st) || !buf)
+        return nullptr;
+
+    g_allocCount++;
+    g_allocBytes += size;
+    return buf;
+}
+
+inline void operator delete[](void* ptr) noexcept {
+    using namespace ribon::mem;
+
+    if (!ptr) return;
+
+    g_freeCount++;
+    FreePool(ptr);
+}
+
+
+// ---------------------------------------
+// Sized delete (for C++14~17 ABI 호환)
+// ---------------------------------------
+inline void operator delete(void* ptr, size_t) noexcept {
+    operator delete(ptr);
+}
+
+inline void operator delete[](void* ptr, size_t) noexcept {
+    operator delete[](ptr);
+}
