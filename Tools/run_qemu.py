@@ -15,7 +15,6 @@ def run(cmd):
 def main():
     run(f"qemu-system-x86_64 "
         f"-drive if=pflash,format=raw,readonly=on,file={OVMF_CODE} "
-        #f"-drive if=pflash,format=raw,file={OVMF_VARS} "
         f"-drive format=raw,file={IMG} "
         f"-m 512M")
 

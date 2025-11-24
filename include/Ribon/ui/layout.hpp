@@ -23,10 +23,21 @@ namespace ribon::ui {
 
     inline Layout* createLayout(int x, int y, int w, int h, LayoutType tp) {
         Layout* ly = new Layout();
-        ly->rect = { x, y, w, h };
+        if (!ly) return nullptr;
+
+        ly->rect   = { x, y, w, h };
         ly->layout = tp;
+
+        // Widget 공통 필드 초기화
+        ly->parent     = nullptr;
+        ly->childCount = 0;
+        for (size_t i = 0; i < 8; ++i) {
+            ly->children[i] = nullptr;
+        }
         ly->isVisible = true;
+
         return ly;
     }
+
 
 } // namespace ribon::ui

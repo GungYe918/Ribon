@@ -4,6 +4,7 @@
 extern "C" {
     #include <Uefi.h>
     #include <Protocol/GraphicsOutput.h>
+    #include <Protocol/SimpleFileSystem.h>
 }
 
 namespace ribon {
@@ -14,5 +15,6 @@ namespace ribon {
     EFI_BOOT_SERVICES* getBS();
     EFI_GRAPHICS_OUTPUT_PROTOCOL* getGop();
     EFI_HANDLE getImageHandle();
+    EFI_FILE_PROTOCOL* getFileRoot();
 
 } // namespace ribon

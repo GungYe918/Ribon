@@ -2,6 +2,7 @@
 #pragma once
 
 #include "widget.hpp"
+#include "Focus.hpp"
 
 namespace ribon::ui {
 
@@ -40,6 +41,8 @@ namespace ribon::ui {
 
             onClick = nullptr;
             userData = nullptr;
+
+            hasFocus = false;
         }
     };
 
@@ -51,9 +54,11 @@ namespace ribon::ui {
         b->text = text;
 
         // 위젯 공통 필드 초기화
-        b->parent    = nullptr;
-        b->childCount = 0;
-        b->isVisible = true;
+        b->parent       = nullptr;
+        b->childCount   = 0;
+        b->isVisible    = true;
+
+        FocusRegister(b);
 
         return b;
     }

@@ -4,6 +4,7 @@
 #include <Ribon/ui/button.hpp>
 #include <Ribon/ui/layout.hpp>
 #include <Ribon/ui/label.hpp>
+#include <Ribon/ui/ImageFrame.hpp>
 
 #include <Ribon/Draw.hpp>
 #include <Ribon/Print.hpp>
@@ -269,9 +270,12 @@ namespace ribon::ui {
 
         uint8_t R, G, Bc, A;
 
+        // hasFocus를 최우선으로 hover에 반영
+        const bool hovered = B.isHovered || B.hasFocus;
+
         if (B.isPressed) {
             R = B.pr; G = B.pg; Bc = B.pb; A = B.pa;
-        } else if (B.isHovered) {
+        } else if (hovered) {
             R = B.hr; G = B.hg; Bc = B.hb; A = B.ha;
         } else {
             R = B.r; G = B.g; Bc = B.b; A = B.a;
@@ -289,6 +293,47 @@ namespace ribon::ui {
         }
     }
 
+    void drawIFrame(const Widget& w) {
+        using namespace ribon;
+
+        auto con = console::getConsole();
+        if (!con || con->mode() != console::TextMode::FBFont) return;
+
+        const IFrame& F = static_cast<const IFrame&>(w);
+        const IFrameStyle& st = F.style;
+
+        int x   = w.rect.x;
+        int y   = w.rect.y;
+        int wdt = w.rect.width;
+        int hgt = w.rect.height;
+
+        // 배경은 더 이상 그리지 않는다
+        // (rounded / bg_r,g,b,a 전부 무시)
+
+        // 이미지가 유효한 경우에만 출력
+        if (F.image.isValid()) {
+            int ix = x + (wdt - F.image.width)  / 2;
+            int iy = y + (hgt - F.image.height) / 2;
+
+            gfx::drawImage(ix, iy, F.image);
+        }
+
+        if (st.border) {
+            gfx::drawRectAlpha(
+                x, y, wdt, 1, st.border_r, st.border_g, st.border_b, st.border_a
+            );
+            gfx::drawRectAlpha(
+                x, y + hgt - 1, wdt, 1, st.border_r, st.border_g, st.border_b, st.border_a
+            );
+            gfx::drawRectAlpha(
+                x, y, 1, hgt, st.border_r, st.border_g, st.border_b, st.border_a
+            );
+            gfx::drawRectAlpha(
+                x + wdt - 1, y, 1, hgt, st.border_r, st.border_g, st.border_b, st.border_a
+            );
+        }
+    }
+
     void drawWidget(const Widget& w) {
         if (!w.isVisible) return;
 
@@ -300,7 +345,8 @@ namespace ribon::ui {
             case WidgetType::Panel:  drawPanel(w);  break;
             case WidgetType::Label:  drawLabel(w);  break;
             case WidgetType::Button: drawButton(w); break;
-            case WidgetType::Layout: /* Layout은 시각 요소 없음 */ break;
+            case WidgetType::IFrame: drawIFrame(w); break;
+            case WidgetType::Layout:                break; /* Layout은 시각 요소 없음 */
         }
 
         for (size_t i = 0; i < w.childCount; ++i)

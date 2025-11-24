@@ -26,9 +26,17 @@ namespace ribon::ui {
 
         l->rect = { x, y, 0, 0 };  // width/height는 텍스트 길이에 따라 자동
         l->text = txt;
+
+        // Widget 공통 필드 초기화
+        l->parent     = nullptr;
+        l->childCount = 0;
+        for (size_t i = 0; i < 8; ++i) {
+            l->children[i] = nullptr;
+        }
         l->isVisible = true;
 
         return l;
     }
+
 
 } // namespace ribon::ui

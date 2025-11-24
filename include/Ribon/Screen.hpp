@@ -37,27 +37,50 @@ namespace ribon::gfx {
     void putPixel(UINTN x, UINTN y, UINT8 r, UINT8 g, UINT8 b);
     
     // RGB값을 실제 픽셀 포맷(RGBA/BGRA)에 맞게 변환
-    static constexpr UINT32 makePixel(UINT8 r, UINT8 g, UINT8 b, PixelFormat fmt) {
-        return (fmt == PixelFormat::BGRA)
-            ? ((255u << 24) | (b << 16) | (g << 8) | r)
-            : ((255u << 24) | (r << 16) | (g << 8) | b);
+    static constexpr UINT32 makePixel(uint8_t r, uint8_t g, uint8_t b, PixelFormat fmt) {
+        switch (fmt) {
+        case PixelFormat::RGBA:
+            // GOP: PixelRedGreenBlueReserved8BitPerColor
+            // bits: [A][B][G][R]  -> 0xAABBGGRR
+            return (0xFFu << 24) |
+                (UINT32(b) << 16) |
+                (UINT32(g) << 8)  |
+                UINT32(r);
+
+        case PixelFormat::BGRA:
+        default:
+            // GOP: PixelBlueGreenRedReserved8BitPerColor
+            // bits: [A][R][G][B]  -> 0xAARRGGBB
+            return (0xFFu << 24) |
+                (UINT32(r) << 16) |
+                (UINT32(g) << 8)  |
+                UINT32(b);
+        }
     }
 
     // FrameBuffer에 저장된 32bit 픽셀을 RGBA로 변환
     static constexpr void unpackPixel(
-        UINT32 px, PixelFormat fmt,
+        UINT32 v, PixelFormat fmt,
         UINT8& r, UINT8& g, UINT8& b, UINT8& a
     ) {
-        a = static_cast<UINT8>((px >> 24) & 0xFFu);
 
-        if (fmt == PixelFormat::BGRA) {
-            b = static_cast<UINT8>((px >> 16) & 0xFFu);
-            g = static_cast<UINT8>((px >> 8)  & 0xFFu);
-            r = static_cast<UINT8>(px & 0xFFu);
-        } else {
-            r = static_cast<UINT8>((px >> 16) & 0xFFu);
-            g = static_cast<UINT8>((px >> 8)  & 0xFFu);
-            b = static_cast<UINT8>(px & 0xFFu);
+        a = static_cast<uint8_t>((v >> 24) & 0xFFu);
+
+        switch (fmt) {
+        case PixelFormat::RGBA:
+            // 0xAABBGGRR
+            b = static_cast<UINT8>((v >> 16) & 0xFFu);
+            g = static_cast<UINT8>((v >> 8)  & 0xFFu);
+            r = static_cast<UINT8>( v        & 0xFFu);
+            break;
+
+        case PixelFormat::BGRA:
+        default:
+            // 0xAARRGGBB
+            r = static_cast<UINT8>((v >> 16) & 0xFFu);
+            g = static_cast<UINT8>((v >> 8)  & 0xFFu);
+            b = static_cast<UINT8>( v        & 0xFFu);
+            break;
         }
     }
 

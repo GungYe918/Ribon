@@ -2,12 +2,35 @@
 #include <Ribon/FrameBuffer.hpp>
 #include <Ribon/Init.hpp>
 #include <Ribon/Print.hpp>
+#include <Ribon/Common.hpp>
+#include "doublebuffer.hpp"
 
-namespace ribon::fb {
+namespace ribon::fb::detail {
 
     static FrameBufferInfo gFB = {};
 
+    static inline UINT32* resolveTargetBase() {
+        if (ribon::gfx::isDoubleBufferEnabled()) {
+            auto bb = ribon::gfx::getDrawTarget();
+            return bb ? bb->base : gFB.base;
+        }
+        return gFB.base;
+    }
+
+    static inline UINTN resolvePitch() {
+        if (ribon::gfx::isDoubleBufferEnabled()) {
+            auto bb = ribon::gfx::getDrawTarget();
+            return bb ? bb->pixelsPerScan : gFB.pixelsPerScanLine;
+        }
+        return gFB.pixelsPerScanLine;
+    }
+
+} // namespace ribon::fb
+
+namespace ribon::fb {
+
     bool initFrameBuffer() {
+        using namespace detail;
         auto gop = ribon::getGop();
         if (!gop) {
             ribon::IO::Print<ribon::IO::Tags::DEBUG>(
@@ -25,7 +48,7 @@ namespace ribon::fb {
     }
 
     const FrameBufferInfo* getFramebuffer() {
-        return (gFB.base ? &gFB : nullptr);
+        return (detail::gFB.base ? &detail::gFB : nullptr);
     }
 
     // ---------------------------------------------------------
@@ -33,21 +56,23 @@ namespace ribon::fb {
     // ---------------------------------------------------------
 
     bool inBounds(int x, int y) {
-        if (!gFB.base)          return false;
+        if (!detail::gFB.base)          return false;
         if (x < 0 || y < 0)     return false;
-        if ((UINTN)x >= gFB.width)  return false;
-        if ((UINTN)y >= gFB.height) return false;
+        if ((UINTN)x >= detail::gFB.width)  return false;
+        if ((UINTN)y >= detail::gFB.height) return false;
         return true;
     }
 
     UINT32 readPixel(int x, int y) {
-        UINTN idx = (UINTN)y * gFB.pixelsPerScanLine + (UINTN)x;
-        return gFB.base[idx];
+        UINT32* base = detail::resolveTargetBase();
+        UINTN pitch  = detail::resolvePitch();
+        return base[y * pitch + x];
     }
 
     void writePixel(int x, int y, UINT32 rgba) {
-        UINTN idx = (UINTN)y * gFB.pixelsPerScanLine + (UINTN)x;
-        gFB.base[idx] = rgba;
+        UINT32* base = detail::resolveTargetBase();
+        UINTN pitch  = detail::resolvePitch();
+        base[y * pitch + x] = rgba;
     }
 
     void writePixelClamped(int x, int y, UINT32 rgba) {
@@ -69,15 +94,14 @@ namespace ribon::fb {
 
     // 화면 전체 clear
     void clear(UINT8 r, UINT8 g, UINT8 b) {
-        // UEFI GOP: 32bit pixel = 0xAABBGGRR (리틀엔디안 기준)
+        UINT32* base = detail::resolveTargetBase();
+        UINTN pitch  = detail::resolvePitch();
+
         UINT32 color = (255u << 24) | (b << 16) | (g << 8) | r;
-
-        if (!gFB.base) return;  // gFB base 주소 없음
-
-        UINTN totalPixels = gFB.pixelsPerScanLine * gFB.height;
+        UINTN totalPixels = pitch * detail::gFB.height;
 
         for (UINTN i = 0; i < totalPixels; i++) {
-            gFB.base[i] = color;
+            base[i] = color;
         }
     }
 
@@ -88,7 +112,7 @@ namespace ribon::fb {
             ribon::IO::Print<ribon::IO::Tags::DEBUG>(
                 "[%04d] 0x%08x\n",
                 i,
-                gFB.base[i]
+                detail::gFB.base[i]
             );
         }
     }
@@ -100,9 +124,9 @@ namespace ribon::fb {
             "  PixelsPerScanLine: %d\n"
             "  SizeInBytes: %d\n"
             "  Base: 0x%lx\n",
-            gFB.width, gFB.height, gFB.pixelsPerScanLine,
-            gFB.sizeInBytes,
-            (UINTN)gFB.base
+            detail::gFB.width, detail::gFB.height, detail::gFB.pixelsPerScanLine,
+            detail::gFB.sizeInBytes,
+            (UINTN)detail::gFB.base
         );
     }
 

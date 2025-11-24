@@ -7,66 +7,65 @@
 #include <Ribon/File.hpp>
 #include <Ribon/Image.hpp>
 
-#include <Ribon/Ui.hpp>
+#include <Ribon/InputSystem.hpp>
 
-
 #include <Ribon/Ui.hpp>
+#include <Ribon/Common.hpp>
+
 
 void TestUI() {
-    {
-        using namespace ribon;
-        using namespace ribon::coord;
-        using namespace ribon::coord::transform;
-        using namespace ribon::ui;
+    using namespace ribon::ui;
+    // Panel 생성
+    Panel* menu = createPanel(100, 100, 400, 300);
 
-        auto fb = ribon::fb::getFramebuffer();
+    menu->style.bg_r = 30;
+    menu->style.bg_g = 30;
+    menu->style.bg_b = 30;
+    menu->style.bg_a = 255;
 
-        // ============================================
-        // 1) 화면 절대 기준 박스 (Absolute)
-        // ============================================
-        AbsolutePos abs1 { 50, 50 };
-        Rect r1 = toRect(abs1, 200, 80);    // 200x80 크기 박스
+    menu->style.radius = 12;
+    menu->style.titleBar = true;
+    menu->style.titleText = "Boot Options";
 
-        drawRect(r1, 255, 0, 0);            // 빨간 박스
+    renderSingleUi(menu);
 
+    // =====================================================================
+    // Label - Panel 아래
+    // =====================================================================
+    Label* label1 = createLabel(120, 150, "Ribon Bootloader UI Test");
+    label1->r = 255; label1->g = 230; label1->b = 230; label1->a = 255;
 
-        // ============================================
-        // 2) 화면 가운데 상대 박스 (Relative)
-        // 부모 없음 → 수동으로 화면 전체 Rect 제공
-        // ============================================
-        Rect screen {
-            0, 0,
-            (int)fb->width,
-            (int)fb->height
-        };
+    renderSingleUi(label1);
 
-        RelativePos rel1 {
-            &screen,
-            0.5f, 0.5f,   // 화면 중앙(anchor)
-            -100, -40      // offset: 중앙에서 왼쪽/위로 이동
-        };
+    // =====================================================================
+    // Button 1
+    // =====================================================================
+    Button* btn1 = createButton(120, 200, 160, 40, "Start OS");
+    btn1->r = 70; btn1->g = 120; btn1->b = 200; btn1->a = 255;
+    renderSingleUi(btn1);
 
-        Rect r2 = toRect(rel1, 200, 80);
+    // =====================================================================
+    // Button 2
+    // =====================================================================
+    Button* btn2 = createButton(120, 250, 160, 40, "Settings");
+    btn2->r = 90; btn2->g = 90; btn2->b = 140; btn2->a = 255;
 
-        drawRect(r2, 0, 255, 0);            // 초록 박스
+    renderSingleUi(btn2);
 
+    // =====================================================================
+    // Layout 테스트 (개별 위젯으로 렌더)
+    // =====================================================================
+    Layout* layout = createLayout(550, 100, 300, 200, LayoutType::Vertical);
+    renderSingleUi(layout);
 
-        // ============================================
-        // 3) 화면 오른쪽 아래에 붙는 박스
-        // ============================================
-        RelativePos rel2 {
-            &screen,
-            1.0f, 1.0f,   // 화면 오른쪽 아래(anchor)
-            -150, -100    // 부모 오른쪽/아래로부터 오프셋
-        };
+    Label* layoutLabel = createLabel(560, 110, "Layout Test Area");
+    renderSingleUi(layoutLabel);
 
-        Rect r3 = toRect(rel2, 150, 100);
+    Button* layoutBtn1 = createButton(560, 150, 200, 40, "Item A");
+    renderSingleUi(layoutBtn1);
 
-        drawRect(r3, 0, 0, 255);            // 파란 박스
-
-        // 화면에 메시지 출력
-        IO::Print("[UI Test] Render 3 boxes.\n");
-    }
+    Button* layoutBtn2 = createButton(560, 200, 200, 40, "Item B");
+    renderSingleUi(layoutBtn2);
 }
 
 void TestImage() {
@@ -75,11 +74,7 @@ void TestImage() {
         using namespace ribon::gfx;
 
         // 1) Root 디렉토리 열기
-        EFI_FILE_PROTOCOL* root = nullptr;
-        if (!ribon::IO::openRoot(&root)) {
-            IO::Print("[ERR] Cannot open root FS\n");
-            return;
-        }
+        EFI_FILE_PROTOCOL* root = getFileRoot();
 
         // 2) PNG 로드 (ESP/logo.png)
         ribon::str::Utf16String path16("\\test.png");
@@ -158,6 +153,10 @@ EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
     // Ribon 초기화
     ribon::initialize(ImageHandle, SystemTable);
 
+    ribon::CommonConfig& ccfg = ribon::GetCommonConfig();
+    ccfg.renderMode = ribon::RenderMode::DoubleBuffer;  // 더블 버퍼링 활성화
+    ccfg.perfMode   = true;                             // 성능 우선 모드 유지
+
     ribon::console::Console console;
     ribon::console::setConsole(&console);
 
@@ -169,7 +168,7 @@ EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
 
 
     ribon::gfx::initScreen(1200, 800);
-    ribon::gfx::clear(255, 165, 160, 255);
+    ribon::gfx::clear(160, 165, 255, 255);
 
     // TestUI();
     
@@ -186,74 +185,62 @@ EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
     ribon::IO::Print<ribon::IO::Tags::UTF16>(
         "GOP loaded successfully.\r\n"
     );
-    
-    //TestImage();
 
     using namespace ribon::ui;
-    // Panel 생성
-    Panel* menu = createPanel(100, 100, 400, 300);
 
+    Panel* menu = createPanel(100, 100, 400, 300);
     menu->style.bg_r = 30;
     menu->style.bg_g = 30;
     menu->style.bg_b = 30;
     menu->style.bg_a = 255;
-
-    menu->style.radius = 12;
+    menu->style.radius   = 12;
     menu->style.titleBar = true;
     menu->style.titleText = "Boot Options";
 
-    //Render(menu);
-
-    // =====================================================================
-    // Label - Panel 아래
-    // =====================================================================
     Label* label1 = createLabel(120, 150, "Ribon Bootloader UI Test");
     label1->r = 255; label1->g = 230; label1->b = 230; label1->a = 255;
 
-    Render(label1);
-
-    // =====================================================================
-    // Button 1
-    // =====================================================================
     Button* btn1 = createButton(120, 200, 160, 40, "Start OS");
     btn1->r = 70; btn1->g = 120; btn1->b = 200; btn1->a = 255;
-    Render(btn1);
 
-    // =====================================================================
-    // Button 2
-    // =====================================================================
     Button* btn2 = createButton(120, 250, 160, 40, "Settings");
     btn2->r = 90; btn2->g = 90; btn2->b = 140; btn2->a = 255;
 
-    Render(btn2);
-
-    // =====================================================================
-    // Layout 테스트 (개별 위젯으로 렌더)
-    // =====================================================================
     Layout* layout = createLayout(550, 100, 300, 200, LayoutType::Vertical);
-    Render(layout);
-
     Label* layoutLabel = createLabel(560, 110, "Layout Test Area");
-    Render(layoutLabel);
-
     Button* layoutBtn1 = createButton(560, 150, 200, 40, "Item A");
-    Render(layoutBtn1);
-
     Button* layoutBtn2 = createButton(560, 200, 200, 40, "Item B");
-    Render(layoutBtn2);
 
-    //TestPrintAllModes();
+    // 루트 위젯 목록 (지금 구조에서는 개별 Render였으니, 그대로 나열)
+    ribon::ui::Widget* roots[] = {
+        menu,
+        label1,
+        btn1,
+        btn2,
+        layout,
+        layoutLabel,
+        layoutBtn1,
+        layoutBtn2
+    };
 
+    ribon::ui::UiLoopConfig cfg;
+    cfg.bg_r = 160;
+    cfg.bg_g = 165;
+    cfg.bg_b = 255;
+    cfg.bg_a = 255;
+    cfg.targetFps = 60;
+    
+    // TestImage();
 
+    ribon::ui::runUiLoop(roots, sizeof(roots) / sizeof(roots[0]), cfg);
 
+    
     
     // -----------------------------------
     //   5초 대기 (UEFI Stall 사용)
     // -----------------------------------
     // Stall() 단위: 1 마이크로초 (1 µs)
     // 5초 = 5,000,000 µs
-    bs->Stall(20000000);
-
-
+    //bs->Stall(200000000);
     return EFI_SUCCESS;
 }

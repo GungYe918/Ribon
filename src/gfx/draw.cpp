@@ -3,27 +3,8 @@
 #include <Ribon/FrameBuffer.hpp>
 #include <Ribon/Screen.hpp>
 
-namespace ribon::gfx::detail {
-
-    /** @brief 픽셀 읽기 */
-    static inline uint32_t readPixelUnsafe(int x, int y) {
-        auto fb = ribon::fb::getFramebuffer();
-        if (!fb) return 0;
-
-        size_t index = y * fb->pixelsPerScanLine + x;
-        return fb->base[index];
-    }
-
-    /** @brief 픽셀 쓰기 */
-    static inline void writePixelUnsafe(int x, int y, uint32_t color) {
-        auto fb = ribon::fb::getFramebuffer();
-        if (!fb) return;
-
-        size_t index = y * fb->pixelsPerScanLine + x;
-        fb->base[index] = color;
-    }
-
-} // namespace ribon::gfx::detail
+#include <Ribon/Common.hpp>
+#include "doublebuffer.hpp"
 
 namespace ribon::gfx {
 
@@ -48,7 +29,7 @@ namespace ribon::gfx {
 
         // 완전 불투명: 그냥 덮어쓰기
         if (a == 255) {
-            const uint32_t color = makePixel(r, g, b, fmt);
+            const UINT32 color = makePixel(r, g, b, fmt);
             ribon::fb::writePixel(x, y, color);
             return;
         }
@@ -67,7 +48,7 @@ namespace ribon::gfx {
         const uint8_t rg = static_cast<uint8_t>(g * sa + dg * inv + 0.5f);
         const uint8_t rb = static_cast<uint8_t>(b * sa + db * inv + 0.5f);
 
-        const uint32_t out = makePixel(rr, rg, rb, fmt);
+        const UINT32 out = makePixel(rr, rg, rb, fmt);
         ribon::fb::writePixel(x, y, out);
     }
 

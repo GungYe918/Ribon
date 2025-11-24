@@ -5,6 +5,8 @@
 #include <Ribon/Init.hpp>
 #include <Ribon/Print.hpp>
 
+#include "doublebuffer.hpp"
+
 namespace ribon::gfx::detail {
 
     /** @brief GOP에서 원하는 해상도 찾기 */
@@ -49,35 +51,41 @@ namespace ribon::gfx {
     };
 
     // Pixel 쓰기
-    void putPixel(UINTN x, UINTN y, UINT8 r, UINT8 g, UINT8 b)
-    {
+    void putPixel(UINTN x, UINTN y, UINT8 r, UINT8 g, UINT8 b) {
         // a=255(완전 불투명)으로 사용
         ribon::gfx::drawPixelAlpha((int)x, (int)y, r, g, b, 255);
     }
 
     // 화면 전체 Clear
     void clear(UINTN r, UINTN g, UINTN b, UINTN a) {
-        const auto& scr = getScreen();
+        auto fbInfo = ribon::fb::getFramebuffer();
+        if (!fbInfo) return;
 
-        // 완전 불투명인 경우는 전체 메모리 overwrite
+        // 완전 불투명: 현재 "드로우 타겟"(싱글/더블)에 대해 한방에 클리어
         if (a == 255) {
-            const UINT32 col = makePixel(r, g, b, scr.format);
-            auto fb = ribon::fb::getFramebuffer();
-            UINTN total = fb->pixelsPerScanLine * fb->height;
-
-            for (UINTN i = 0; i < total; i++)
-                fb->base[i] = col;
-
+            ribon::fb::clear(
+                static_cast<UINT8>(r),
+                static_cast<UINT8>(g),
+                static_cast<UINT8>(b)
+            );
             return;
         }
 
-        // 그 외엔 알파 블렌딩
-        for (UINTN y = 0; y < scr.height; y++) {
-            for (UINTN x = 0; x < scr.width; x++) {
-                drawPixelAlpha((int)x, (int)y, r, g, b, (UINT8)a);
+        // 반투명 배경: 픽셀 단위 알파 블렌딩 (역시 드로우 타겟은 fb 모듈이 결정)
+        for (UINTN y = 0; y < fbInfo->height; ++y) {
+            for (UINTN x = 0; x < fbInfo->width; ++x) {
+                drawPixelAlpha(
+                    static_cast<int>(x),
+                    static_cast<int>(y),
+                    static_cast<uint8_t>(r),
+                    static_cast<uint8_t>(g),
+                    static_cast<uint8_t>(b),
+                    static_cast<uint8_t>(a)
+                );
             }
         }
     }
+
 
     bool initScreen(UINTN desiredWidth, UINTN desiredHeight) {
         auto gop = ribon::getGop();
@@ -123,6 +131,13 @@ namespace ribon::gfx {
             gScreen.width, gScreen.height,
             (gScreen.format == PixelFormat::BGRA ? "BGRA" : "RGBA")
         );
+
+        // -----------------------------
+        // 더블 버퍼 연결
+        // -----------------------------
+        // (동일 함수 재호출 대비해서 먼저 정리)
+        destroyDoubleBuffer();
+        initDoubleBuffer();   // 내부에서 CommonConfig.renderMode == DoubleBuffer 인지 체크
 
         return true;
     }

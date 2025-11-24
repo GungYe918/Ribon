@@ -13,11 +13,12 @@ namespace ribon::ui {
         Panel,
         Label,
         Button,
-        Layout
+        Layout,
+        IFrame,
     };
 
     class Widget {
-    public: 
+    public:
         WidgetType type;
         ribon::coord::Rect rect;
 
@@ -26,6 +27,20 @@ namespace ribon::ui {
         size_t childCount;
 
         bool isVisible;
+        bool hasFocus;  // 이 위젯이 Focus기능을 가지고 있는가 
+
+        Widget()
+            : type(WidgetType::Panel),
+              rect{0, 0, 0, 0},
+              parent(nullptr),
+              childCount(0),
+              isVisible(true),
+              hasFocus(false)
+        {
+            for (size_t i = 0; i < 8; ++i) {
+                children[i] = nullptr;
+            }
+        }
     };
 
 
@@ -36,9 +51,13 @@ namespace ribon::ui {
     // 최상위 디스패처
     void drawWidget(const Widget& w);
 
+    // ----------------
+    // 개별 위젯 함수들 
+    // ----------------
 
     void drawPanel(const Widget& w);
     void drawLabel(const Widget& w);
     void drawButton(const Widget& w);
+    void drawIFrame(const Widget& w);
 
 } // namespace ribon::ui

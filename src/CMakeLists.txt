@@ -13,6 +13,7 @@ add_library(ribon_guids STATIC
 add_library(ribon_rt STATIC
     runtime/mem.cpp
     runtime/stub.cpp
+    runtime/common.cpp
 )
 
 add_library(ribon_console STATIC
@@ -42,6 +43,7 @@ add_library(ribon_gfx STATIC
     gfx/draw.cpp
     gfx/screen.cpp
     gfx/image.cpp
+    gfx/doublebuffer.cpp
 )
 
 add_library(ribon_io STATIC
@@ -50,4 +52,6 @@ add_library(ribon_io STATIC
 
 add_library(ribon_ui STATIC
     ui/widget.cpp
+    ui/focus.cpp
+    ui/render.cpp
 )
