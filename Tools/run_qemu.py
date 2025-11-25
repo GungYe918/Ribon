@@ -16,9 +16,9 @@ def main():
     run(f"qemu-system-x86_64 "
         f"-drive if=pflash,format=raw,readonly=on,file={OVMF_CODE} "
         f"-drive format=raw,file={IMG} "
-        f"-m 512M ")
-        #f"-serial mon:stdio "
-        #f"-s -S ")
+        f"-m 512M "
+        f"-serial mon:stdio "
+        f"-s -S ")
 
 if __name__ == "__main__":
     main()
