@@ -2,7 +2,7 @@
 #include <Ribon/Screen.hpp>
 #include <Ribon/Draw.hpp>
 #include <Ribon/FrameBuffer.hpp>
-#include <Ribon/Init.hpp>
+#include <Ribon/EfiContext.hpp>
 #include <Ribon/Print.hpp>
 
 #include "doublebuffer.hpp"

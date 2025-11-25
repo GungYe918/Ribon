@@ -6,7 +6,7 @@ extern "C" {
     #include <Protocol/SimpleTextInEx.h>
 }
 
-#include <Ribon/Init.hpp>
+#include <Ribon/EfiContext.hpp>
 
 namespace ribon::IO {
 

@@ -52,7 +52,7 @@ include_directories(
 # ----------------------------------------------------
 add_subdirectory(src)
 add_subdirectory(arch/${ARCH})
-add_subdirectory(boot)
+add_subdirectory(loaderPkg)
 
 # ----------------------------------------------------
 # 4) Bootloader Mode (Delegated to bootldr/)

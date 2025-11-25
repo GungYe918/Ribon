@@ -1,4 +1,4 @@
-#include <Ribon/Init.hpp>
+#include <Ribon/EfiContext.hpp>
 #include <Ribon/String.hpp>
 #include <Ribon/Print.hpp>
 #include <Ribon/FrameBuffer.hpp>
@@ -73,7 +73,7 @@ EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
     auto st = ribon::getST();
     auto bs = ribon::getBS();
 
-    ribon::gfx::initScreen(800, 600);
+    ribon::gfx::initScreen(1200, 800);
     ribon::gfx::clear(160, 165, 255, 255);
 
     // 배너 출력 (처음 1프레임에만 보이고 이후 UI 루프에서 덮일 수 있음)

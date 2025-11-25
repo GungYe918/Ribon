@@ -1,4 +1,4 @@
-#include <Ribon/Init.hpp>
+#include <Ribon/EfiContext.hpp>
 
 
 extern "C" {

@@ -6,7 +6,6 @@ extern "C" {
     #include <Uefi.h>
 }
 
-#include <Ribon/Init.hpp>
 #include <base/Utf16String.hpp>
 #include <base/Utf8String.hpp>
 #include <Ribon/FrameBuffer.hpp>

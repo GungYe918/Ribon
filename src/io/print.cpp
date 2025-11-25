@@ -2,7 +2,7 @@
 #include <Ribon/Print.hpp>
 #include <Ribon/base/Utf8String.hpp>
 #include <Ribon/base/Utf16String.hpp>
-#include <Ribon/Init.hpp>
+#include <Ribon/EfiContext.hpp>
 #include <Ribon/Console.hpp>
 #include <Ribon/Common.hpp>
 

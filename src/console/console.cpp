@@ -1,6 +1,6 @@
 // src/console/console.cpp
 #include <Ribon/Console.hpp>
-#include <Ribon/Init.hpp>
+#include <Ribon/EfiContext.hpp>
 #include <Ribon/FrameBuffer.hpp>
 #include <Ribon/Memory.hpp>
 #include <stdarg.h>

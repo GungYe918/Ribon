@@ -1,6 +1,6 @@
 // src/gfx/framebuffer.cpp
 #include <Ribon/FrameBuffer.hpp>
-#include <Ribon/Init.hpp>
+#include <Ribon/EfiContext.hpp>
 #include <Ribon/Print.hpp>
 #include <Ribon/Common.hpp>
 #include <Ribon/Screen.hpp>

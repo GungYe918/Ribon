@@ -6,7 +6,7 @@ extern "C" {
     #include <Protocol/LoadedImage.h>
 }
 
-#include <Ribon/Init.hpp>
+#include <Ribon/EfiContext.hpp>
 #include <Memory.hpp>
 
 //

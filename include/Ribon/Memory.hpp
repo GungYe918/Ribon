@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include <Ribon/Init.hpp>
+#include <Ribon/EfiContext.hpp>
 #include <Uefi.h>
 
 // ------------------------------------------

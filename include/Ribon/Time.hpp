@@ -1,6 +1,6 @@
 #pragma once
 #include <stdint.h>
-#include <Ribon/Init.hpp>
+#include <Ribon/EfiContext.hpp>
 
 
 namespace ribon {

@@ -3,7 +3,7 @@
 add_library(ribon_core STATIC
     core/log.cpp
     core/utf16_string.cpp
-    core/init.cpp
+    core/eficontext.cpp
 )
 
 add_library(ribon_guids STATIC

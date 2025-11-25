@@ -4,7 +4,7 @@
 #include <Ribon/Image.hpp>
 #include <Ribon/Memory.hpp>
 #include <Ribon/String.hpp>
-#include <Ribon/Init.hpp>
+#include <Ribon/EfiContext.hpp>
 
 namespace ribon::ui {
 
