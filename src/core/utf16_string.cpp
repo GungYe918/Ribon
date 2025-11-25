@@ -90,6 +90,65 @@ namespace ribon::str {
         return *this;
     }
 
+    void Utf16String::push_back(CHAR16 c) {
+        // 새 길이 = 기존 + 1 문자 + 널(1)
+        UINTN new_len = len + 1;
+        UINTN new_size_bytes = (new_len + 1) * sizeof(CHAR16);
+
+        VOID* tmp = nullptr;
+
+        // 새 버퍼 할당
+        if (EFI_ERROR(mem::AllocatePool(EfiBootServicesData, new_size_bytes, &tmp)))
+            return;
+
+        CHAR16* newbuf = (CHAR16*)tmp;
+
+        // 기존내용 복사
+        for (UINTN i = 0; i < len; i++)
+            newbuf[i] = buf[i];
+
+        // 새로운 문자 추가
+        newbuf[len] = c;
+        newbuf[len + 1] = 0;
+
+        // 기존 버퍼 해제
+        if (buf)
+            mem::FreePool(buf);
+
+        // 교체
+        buf = newbuf;
+        len = new_len;
+    }
+
+    void Utf16String::copy_from_utf16(const Utf16String& other) {
+        if (this == &other) return;
+
+        UINTN other_len = other.len;
+
+        // 새 버퍼 할당
+        UINTN new_size_bytes = (other_len + 1) * sizeof(CHAR16);
+        VOID* tmp = nullptr;
+
+        if (EFI_ERROR(mem::AllocatePool(EfiBootServicesData, new_size_bytes, &tmp)))
+            return;
+
+        CHAR16* newbuf = (CHAR16*)tmp;
+
+        // 문자열 복사
+        for (UINTN i = 0; i < other_len; i++)
+            newbuf[i] = other.buf[i];
+
+        newbuf[other_len] = 0;
+
+        // 기존 메모리 해제
+        if (buf)
+            mem::FreePool(buf);
+
+        // 교체
+        buf = newbuf;
+        len = other_len;
+    }
+
     // 소멸자
     Utf16String::~Utf16String() {
         if (buf) mem::FreePool(buf);

@@ -54,4 +54,5 @@ add_library(ribon_ui STATIC
     ui/widget.cpp
     ui/focus.cpp
     ui/render.cpp
+    ui/consoleoverlay.cpp
 )

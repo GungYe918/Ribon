@@ -2,22 +2,26 @@
 #include <Ribon/Ui.hpp>
 #include <Ribon/InputSystem.hpp>
 #include <Ribon/Time.hpp>
+#include <Ribon/Common.hpp>
 
 #include "../gfx/doublebuffer.hpp"
+
+namespace ribon::ui::detail {
+
+    bool g_externalDirty = false;
+
+} // namespace ribon::ui::detail
 
 void ribon::ui::runUiLoop(const UiLoopConfig& cfg) {
     using namespace ribon;
 
-    // 이 둘은 루프 밖에서 가져와도 되지만,
-    // rootCount는 매 프레임 갱신해야 한다.
     auto roots = ribon::ui::getRootWidgetList();
+    auto& ccfg = ribon::GetCommonConfig();
 
-    // 1) 입력 시스템 초기화
     auto& input = IO::GetInput();
     input.init();
 
     uint32_t fps = cfg.targetFps ? cfg.targetFps : 60;
-    if (fps == 0) fps = 60;
     const uint64_t frameUsec = 1000000ull / fps;
 
     bool dirty = true;
@@ -47,18 +51,38 @@ void ribon::ui::runUiLoop(const UiLoopConfig& cfg) {
             if (changed) dirty = true;
         }
 
+        // ★ Print/ConsoleOverlay 등에서 요청한 redraw 반영
+        if (consumeUiRedrawFlag()) {
+            dirty = true;
+        }
+
         if (dirty) {
             gfx::clear(cfg.bg_r, cfg.bg_g, cfg.bg_b, cfg.bg_a);
 
-            // ★ 여기에서 매 프레임마다 최신 개수 읽기
             size_t rootCount = ribon::ui::getRootWidgetCount();
+            Widget** roots = ribon::ui::getRootWidgetList();
+
+            // ★ ConsoleOverlay는 나중에 따로 그리기 위해 잡아둠
+            Widget* overlay = nullptr;
 
             for (size_t i = 0; i < rootCount; ++i) {
-                renderSingleUi(roots[i]);
+                Widget* w = roots[i];
+                if (!w) continue;
+
+                if (w->type == WidgetType::ConsoleOverlay) {
+                    overlay = w;
+                    continue;
+                }
+
+                renderSingleUi(w);
+            }
+
+            // 맨 마지막에 ConsoleOverlay 렌더링 
+            if (overlay) {
+                renderSingleUi(overlay);
             }
 
             gfx::present();
-            dirty = false;
         }
 
         const uint64_t frameEnd = nowMicroseconds();
@@ -69,5 +93,18 @@ void ribon::ui::runUiLoop(const UiLoopConfig& cfg) {
         if (elapsed < frameUsec) {
             sleepMicroseconds(frameUsec - elapsed);
         }
+    
     }
+}
+
+// 외부에서 호출
+void ribon::ui::requestUiRedraw() {
+    detail::g_externalDirty = true;
+}
+
+// runUiLoop 내부에서만 사용
+bool ribon::ui::consumeUiRedrawFlag() {
+    bool v = detail::g_externalDirty;
+    detail::g_externalDirty = false;
+    return v;
 }

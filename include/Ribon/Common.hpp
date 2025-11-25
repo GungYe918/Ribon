@@ -25,6 +25,9 @@ namespace ribon {
         // 데스크탑 스타일 UI인지 여부
         bool desktopEnvironment = false;
 
+        // UI 위젯 시스템 사용 여부
+        bool uiEnabled = false;
+
         // 화면비 관련 기본 정보 (원한다면 더 확장 가능)
         uint8_t width = 0;
         uint8_t height = 0;

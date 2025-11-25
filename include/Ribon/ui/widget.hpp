@@ -15,6 +15,7 @@ namespace ribon::ui {
         Button,
         Layout,
         IFrame,
+        ConsoleOverlay,
     };
 
     class Widget {

@@ -61,6 +61,7 @@ EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
 
     ribon::CommonConfig& ccfg = ribon::GetCommonConfig();
     ccfg.renderMode = ribon::RenderMode::DoubleBuffer;  // 더블 버퍼링 활성화
+    ccfg.uiEnabled  = true;                             // DirtyLevel 설정
     ccfg.perfMode   = true;                             // 성능 우선 모드 유지
 
     ribon::console::Console console;
@@ -142,6 +143,10 @@ EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
     cfg.bg_b = 255;
     cfg.bg_a = 255;
     cfg.targetFps = 60;
+
+    ribon::IO::Print<ribon::IO::Tags::UTF16>(
+        "GOP loaded successfully.\r\n"
+    );
 
     runUiLoop(cfg);
 

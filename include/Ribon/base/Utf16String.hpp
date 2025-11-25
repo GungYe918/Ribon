@@ -24,6 +24,10 @@ namespace ribon::str {
             if (buf) buf[0] = 0;
         }
 
+        void push_back(CHAR16 c);
+
+        void copy_from_utf16(const Utf16String& other);
+
 
         ~Utf16String();
 

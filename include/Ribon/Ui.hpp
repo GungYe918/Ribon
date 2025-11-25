@@ -75,4 +75,9 @@ namespace ribon::ui {
 
     void runUiLoop(const UiLoopConfig& cfg);
 
+
+    // Rerendering 호출
+    void requestUiRedraw();
+    bool consumeUiRedrawFlag();
+
 } // namespace ribon::ui

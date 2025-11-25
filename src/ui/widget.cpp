@@ -5,6 +5,7 @@
 #include <Ribon/ui/layout.hpp>
 #include <Ribon/ui/label.hpp>
 #include <Ribon/ui/ImageFrame.hpp>
+#include <Ribon/ui/ConsoleOverlay.hpp>
 
 #include <Ribon/Draw.hpp>
 #include <Ribon/Print.hpp>
@@ -330,6 +331,31 @@ namespace ribon::ui {
         F.image.unload();
     }
 
+    void drawConsoleOverlay(const Widget& w) {
+        using namespace ribon;
+
+        auto con = console::getConsole();
+        if (!con) return;
+        if (con->mode() != console::TextMode::FBFont) {
+            return;
+        }
+
+        const ConsoleOverlay& ov = static_cast<const ConsoleOverlay&>(w);
+
+        con->setColor(ov.r, ov.g, ov.b, ov.a);
+
+        int x = 8;
+        int y = 8;
+        for (size_t i = 0; i < ov.lineCount; ++i) {
+            if (ov.lines[i].length() == 0) continue;
+
+            IO::FreePrintRawAt(x, y, ov.lines[i].c_str());
+            y += (int)ribon::font::FONT_HEIGHT;
+        }
+
+        con->resetColor();
+    }
+
     void drawWidget(const Widget& w) {
         if (!w.isVisible) return;
 
@@ -338,11 +364,12 @@ namespace ribon::ui {
             detail::applyLayout(static_cast<const Layout&>(w));
 
         switch (w.type) {
-            case WidgetType::Panel:  drawPanel(w);  break;
-            case WidgetType::Label:  drawLabel(w);  break;
-            case WidgetType::Button: drawButton(w); break;
-            case WidgetType::IFrame: drawIFrame(w); break;
-            case WidgetType::Layout:                break; /* Layout은 시각 요소 없음 */
+            case WidgetType::Panel:             drawPanel(w);           break;
+            case WidgetType::Label:             drawLabel(w);           break;
+            case WidgetType::Button:            drawButton(w);          break;
+            case WidgetType::IFrame:            drawIFrame(w);          break;
+            case WidgetType::ConsoleOverlay:    drawConsoleOverlay(w);  break;
+            case WidgetType::Layout:    /* Layout은 시각 요소 없음 */    break; 
         }
 
         for (size_t i = 0; i < w.childCount; ++i)

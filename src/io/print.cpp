@@ -4,7 +4,13 @@
 #include <Ribon/base/Utf16String.hpp>
 #include <Ribon/Init.hpp>
 #include <Ribon/Console.hpp>
+#include <Ribon/Common.hpp>
 
+
+namespace ribon::ui {
+    // 전방 선언
+    void appendConsoleOverlayText(const CHAR16* text);
+}
 
 namespace ribon::IO::detail {
 
@@ -175,21 +181,38 @@ namespace ribon::IO {
         // UTF-16 변환까지만 수행
         ribon::str::Utf16String s = detail::FormatToUtf16(utf8_fmt, args);
 
-        // 실제 출력은 콘솔 엔진이 담당
-        auto con = ribon::console::getConsole();
-        if (con)
-            con->write(s);
-    }
+        auto& cfg = ribon::GetCommonConfig();
+        bool useWidgetPrint =
+            (cfg.renderMode == RenderMode::DoubleBuffer) &&
+            cfg.uiEnabled;
 
+        if (useWidgetPrint) {
+            // UI + 더블버퍼면 Widget 콘솔에 쌓기
+            ui::appendConsoleOverlayText(s.c_str());
+        } else {
+            auto con = ribon::console::getConsole();
+            if (con)
+                con->write(s);
+        }
+    }
 
     
     /**
      * @brief Utf16Print: raw utf16을 콘솔로 전달
      */
     void Utf16Print(const CHAR16* wstr) {
-        auto con = ribon::console::getConsole();
-        if (!con) return;
-        con->write(ribon::str::Utf16String(wstr));
+        auto& cfg = ribon::GetCommonConfig();
+        bool useWidgetPrint =
+            (cfg.renderMode == RenderMode::DoubleBuffer) &&
+            cfg.uiEnabled;
+
+        if (useWidgetPrint) {
+            ui::appendConsoleOverlayText(wstr);
+        } else {
+            auto con = ribon::console::getConsole();
+            if (!con) return;
+            con->write(ribon::str::Utf16String(wstr));
+        }
     }
 
 
@@ -216,9 +239,18 @@ namespace ribon::IO {
 
         va_end(args);
 
-        auto con = ribon::console::getConsole();
-        if (con)
-            con->write(s);
+        auto& cfg = ribon::GetCommonConfig();
+        bool useWidgetPrint =
+            (cfg.renderMode == RenderMode::DoubleBuffer) &&
+            cfg.uiEnabled;
+
+        if (useWidgetPrint) {
+            ui::appendConsoleOverlayText(s.c_str());
+        } else {
+            auto con = ribon::console::getConsole();
+            if (con)
+                con->write(s);
+        }
     }
 
     /**
