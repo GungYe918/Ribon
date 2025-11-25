@@ -12,62 +12,6 @@
 #include <Ribon/Ui.hpp>
 #include <Ribon/Common.hpp>
 
-
-void TestUI() {
-    using namespace ribon::ui;
-    // Panel 생성
-    Panel* menu = createPanel(100, 100, 400, 300);
-
-    menu->style.bg_r = 30;
-    menu->style.bg_g = 30;
-    menu->style.bg_b = 30;
-    menu->style.bg_a = 255;
-
-    menu->style.radius = 12;
-    menu->style.titleBar = true;
-    menu->style.titleText = "Boot Options";
-
-    renderSingleUi(menu);
-
-    // =====================================================================
-    // Label - Panel 아래
-    // =====================================================================
-    Label* label1 = createLabel(120, 150, "Ribon Bootloader UI Test");
-    label1->r = 255; label1->g = 230; label1->b = 230; label1->a = 255;
-
-    renderSingleUi(label1);
-
-    // =====================================================================
-    // Button 1
-    // =====================================================================
-    Button* btn1 = createButton(120, 200, 160, 40, "Start OS");
-    btn1->r = 70; btn1->g = 120; btn1->b = 200; btn1->a = 255;
-    renderSingleUi(btn1);
-
-    // =====================================================================
-    // Button 2
-    // =====================================================================
-    Button* btn2 = createButton(120, 250, 160, 40, "Settings");
-    btn2->r = 90; btn2->g = 90; btn2->b = 140; btn2->a = 255;
-
-    renderSingleUi(btn2);
-
-    // =====================================================================
-    // Layout 테스트 (개별 위젯으로 렌더)
-    // =====================================================================
-    Layout* layout = createLayout(550, 100, 300, 200, LayoutType::Vertical);
-    renderSingleUi(layout);
-
-    Label* layoutLabel = createLabel(560, 110, "Layout Test Area");
-    renderSingleUi(layoutLabel);
-
-    Button* layoutBtn1 = createButton(560, 150, 200, 40, "Item A");
-    renderSingleUi(layoutBtn1);
-
-    Button* layoutBtn2 = createButton(560, 200, 200, 40, "Item B");
-    renderSingleUi(layoutBtn2);
-}
-
 void TestImage() {
     {
         using namespace ribon;
@@ -99,50 +43,12 @@ void TestImage() {
     }
 }
 
-void TestPrintAllModes()
-{
-    using namespace ribon;
+void StartOsCallback(void*) {
+    ribon::ui::showMessageLabel(100, 500, "Start OS pressed!");
+}
 
-    auto fb = fb::getFramebuffer();
-    int centerX = fb->width / 2;
-    int centerY = fb->height / 2;
-
-    // ---------------------------------------------
-    // 1) 기본 Print(fmt)
-    // ---------------------------------------------
-    IO::Print("Print Engine Test (Default Print : 1)\n");
-
-    // ---------------------------------------------
-    // 2) UTF16 모드
-    // ---------------------------------------------
-    IO::Print<IO::Tags::UTF16>(
-        "Print Engine Test (UTF16 Mode : 2)\r\n"
-    );
-
-    // ---------------------------------------------
-    // 3) RAW 모드
-    // ---------------------------------------------
-    IO::Print<IO::Tags::RAW>(
-        "Print Engine Test (RAW Mode : 3)\n"
-    );
-
-    // ---------------------------------------------
-    // 4) DEBUG 모드
-    // ---------------------------------------------
-    IO::Print<IO::Tags::DEBUG>(
-        "Print Engine Test (DEBUG Mode : 4)\n"
-    );
-
-    // ---------------------------------------------
-    // 5) FREE_RAW 모드 (XY 지정 출력)
-    // 화면 정중앙에 출력
-    // ---------------------------------------------
-    {
-        ribon::str::Utf16String u16("Print Engine Test (FREE_RAW Mode : 5)");
-
-        // FREE_RAW는 좌표를 외부에서 지정하는 방식
-        IO::FreePrintRawAt(centerX - 200, centerY, u16.c_str());
-    }
+void SettingsCallback(void*) {
+    ribon::ui::showMessageLabel(100, 520, "Settings pressed!");
 }
 
 extern "C"
@@ -166,28 +72,25 @@ EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
     auto st = ribon::getST();
     auto bs = ribon::getBS();
 
-
-    ribon::gfx::initScreen(1200, 800);
+    ribon::gfx::initScreen(800, 600);
     ribon::gfx::clear(160, 165, 255, 255);
 
-    // TestUI();
-    
-
-    // 배너 출력
+    // 배너 출력 (처음 1프레임에만 보이고 이후 UI 루프에서 덮일 수 있음)
     ribon::IO::Print<ribon::IO::Tags::UTF16>(
         "Ribon EFI Bootloader Starting...\r\n"
     );
-
     ribon::IO::Print<ribon::IO::Tags::UTF16>(
         "Hello? %d\n", 42
     );
-
     ribon::IO::Print<ribon::IO::Tags::UTF16>(
         "GOP loaded successfully.\r\n"
     );
 
     using namespace ribon::ui;
 
+    // ---------------------------
+    //  UI 위젯 구성
+    // ---------------------------
     Panel* menu = createPanel(100, 100, 400, 300);
     menu->style.bg_r = 30;
     menu->style.bg_g = 30;
@@ -201,9 +104,11 @@ EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
     label1->r = 255; label1->g = 230; label1->b = 230; label1->a = 255;
 
     Button* btn1 = createButton(120, 200, 160, 40, "Start OS");
+    setButtonCallback(btn1, StartOsCallback);
     btn1->r = 70; btn1->g = 120; btn1->b = 200; btn1->a = 255;
 
     Button* btn2 = createButton(120, 250, 160, 40, "Settings");
+    setButtonCallback(btn2, SettingsCallback);
     btn2->r = 90; btn2->g = 90; btn2->b = 140; btn2->a = 255;
 
     Layout* layout = createLayout(550, 100, 300, 200, LayoutType::Vertical);
@@ -211,36 +116,35 @@ EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
     Button* layoutBtn1 = createButton(560, 150, 200, 40, "Item A");
     Button* layoutBtn2 = createButton(560, 200, 200, 40, "Item B");
 
-    // 루트 위젯 목록 (지금 구조에서는 개별 Render였으니, 그대로 나열)
-    ribon::ui::Widget* roots[] = {
-        menu,
-        label1,
-        btn1,
-        btn2,
-        layout,
-        layoutLabel,
-        layoutBtn1,
-        layoutBtn2
-    };
+    // 필요하면 IFrame도 여기서 생성 후 등록 가능
+    // ribon::str::Utf16String path16("\\test.png");
+    // IFrame* imgFrame = createIFrame(10, 10, 200, 200, path16.c_str());
 
-    ribon::ui::UiLoopConfig cfg;
+    // ---------------------------
+    //  루트 위젯 동적 등록
+    // ---------------------------
+    registerRootWidget(menu);
+    registerRootWidget(label1);
+    registerRootWidget(btn1);
+    registerRootWidget(btn2);
+    registerRootWidget(layout);
+    registerRootWidget(layoutLabel);
+    registerRootWidget(layoutBtn1);
+    registerRootWidget(layoutBtn2);
+    // registerRootWidget(imgFrame);
+
+    // ---------------------------
+    //  UI 루프 실행
+    // ---------------------------
+    UiLoopConfig cfg;
     cfg.bg_r = 160;
     cfg.bg_g = 165;
     cfg.bg_b = 255;
     cfg.bg_a = 255;
     cfg.targetFps = 60;
-    
-    // TestImage();
 
-    ribon::ui::runUiLoop(roots, sizeof(roots) / sizeof(roots[0]), cfg);
+    runUiLoop(cfg);
 
-    
-    
-    // -----------------------------------
-    //   5초 대기 (UEFI Stall 사용)
-    // -----------------------------------
-    // Stall() 단위: 1 마이크로초 (1 µs)
-    // 5초 = 5,000,000 µs
-    //bs->Stall(200000000);
+    // 여기까지 오지 않음 (무한 루프) 이지만, 형식상 반환
     return EFI_SUCCESS;
 }

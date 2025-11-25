@@ -63,5 +63,11 @@ namespace ribon::ui {
         return b;
     }
 
+    inline void setButtonCallback(Button* btn, void (*cb)(void*), void* userData = nullptr) {
+        if (!btn) return;
+        btn->onClick = cb;
+        btn->userData = userData;
+    }
+
 
 } // namespace ribon::ui

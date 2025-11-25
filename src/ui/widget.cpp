@@ -294,44 +294,40 @@ namespace ribon::ui {
     }
 
     void drawIFrame(const Widget& w) {
-        using namespace ribon;
+        IFrame& F = const_cast<IFrame&>(static_cast<const IFrame&>(w));
 
-        auto con = console::getConsole();
-        if (!con || con->mode() != console::TextMode::FBFont) return;
+        // 이미지가 아직 로드되지 않았으면 지금 로드
+        if (!F.loaded) {
+            if (F.path) {
+                EFI_FILE_PROTOCOL* root = ribon::IO::getFileRoot();
+                if (root) {
+                    F.image = ribon::gfx::Image::loadFromFile(root, F.path);
 
-        const IFrame& F = static_cast<const IFrame&>(w);
-        const IFrameStyle& st = F.style;
+                    if (!F.image.isValid()) {
+                        ribon::IO::Print("[IFrame] Image load failed: %c", F.path);
+                        return;
+                    }
 
-        int x   = w.rect.x;
-        int y   = w.rect.y;
-        int wdt = w.rect.width;
-        int hgt = w.rect.height;
+                    // w/h가 0이면 PNG 크기로 자동 결정
+                    if (F.rect.width == 0)  F.rect.width  = F.image.width;
+                    if (F.rect.height == 0) F.rect.height = F.image.height;
 
-        // 배경은 더 이상 그리지 않는다
-        // (rounded / bg_r,g,b,a 전부 무시)
-
-        // 이미지가 유효한 경우에만 출력
-        if (F.image.isValid()) {
-            int ix = x + (wdt - F.image.width)  / 2;
-            int iy = y + (hgt - F.image.height) / 2;
-
-            gfx::drawImage(ix, iy, F.image);
+                    F.loaded = true;
+                }
+            }
         }
 
-        if (st.border) {
-            gfx::drawRectAlpha(
-                x, y, wdt, 1, st.border_r, st.border_g, st.border_b, st.border_a
-            );
-            gfx::drawRectAlpha(
-                x, y + hgt - 1, wdt, 1, st.border_r, st.border_g, st.border_b, st.border_a
-            );
-            gfx::drawRectAlpha(
-                x, y, 1, hgt, st.border_r, st.border_g, st.border_b, st.border_a
-            );
-            gfx::drawRectAlpha(
-                x + wdt - 1, y, 1, hgt, st.border_r, st.border_g, st.border_b, st.border_a
-            );
-        }
+        if (!F.image.isValid())
+            return;
+
+        // Rect -> Point 변환
+        ribon::coord::Point pos = ribon::coord::transform::toPoint(w.rect);
+
+        // draw
+        ribon::gfx::drawImage(pos.x, pos.y, F.image);
+
+        // 나중에 언로드
+        F.image.unload();
     }
 
     void drawWidget(const Widget& w) {

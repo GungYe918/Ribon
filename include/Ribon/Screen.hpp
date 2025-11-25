@@ -10,9 +10,10 @@ extern "C" {
 namespace ribon::gfx {
 
     enum class PixelFormat {
-        BGRA,
-        RGBA
-    };  
+        BGRA,   // 메모리: [B][G][R][A]  (UEFI: PixelBlueGreenRedReserved8BitPerColor)
+        RGBA    // 메모리: [R][G][B][A]  (UEFI: PixelRedGreenBlueReserved8BitPerColor)
+    };
+
 
     struct ScreenInfo {
         UINTN width;
@@ -36,50 +37,49 @@ namespace ribon::gfx {
      */
     void putPixel(UINTN x, UINTN y, UINT8 r, UINT8 g, UINT8 b);
     
-    // RGB값을 실제 픽셀 포맷(RGBA/BGRA)에 맞게 변환
+    // R,G,B (0~255)를 32비트 값으로 인코딩
     static constexpr UINT32 makePixel(uint8_t r, uint8_t g, uint8_t b, PixelFormat fmt) {
         switch (fmt) {
+
         case PixelFormat::RGBA:
-            // GOP: PixelRedGreenBlueReserved8BitPerColor
-            // bits: [A][B][G][R]  -> 0xAABBGGRR
+            // 값: 0xFFBBGGRR  -> little endian 메모리: [RR][GG][BB][FF] = R,G,B,A
             return (0xFFu << 24) |
-                (UINT32(b) << 16) |
-                (UINT32(g) << 8)  |
-                UINT32(r);
+                   (UINT32(b) << 16) |
+                   (UINT32(g) << 8)  |
+                   UINT32(r);
 
         case PixelFormat::BGRA:
         default:
-            // GOP: PixelBlueGreenRedReserved8BitPerColor
-            // bits: [A][R][G][B]  -> 0xAARRGGBB
+            // 값: 0xFFRRGGBB -> little endian 메모리: [BB][GG][RR][FF] = B,G,R,A
             return (0xFFu << 24) |
-                (UINT32(r) << 16) |
-                (UINT32(g) << 8)  |
-                UINT32(b);
+                   (UINT32(r) << 16) |
+                   (UINT32(g) << 8)  |
+                   UINT32(b);
         }
     }
 
-    // FrameBuffer에 저장된 32bit 픽셀을 RGBA로 변환
+
+    // FrameBuffer에 저장된 32bit 픽셀을 R,G,B,A(0~255)로 디코딩
     static constexpr void unpackPixel(
         UINT32 v, PixelFormat fmt,
         UINT8& r, UINT8& g, UINT8& b, UINT8& a
     ) {
-
         a = static_cast<uint8_t>((v >> 24) & 0xFFu);
 
         switch (fmt) {
         case PixelFormat::RGBA:
-            // 0xAABBGGRR
-            b = static_cast<UINT8>((v >> 16) & 0xFFu);
-            g = static_cast<UINT8>((v >> 8)  & 0xFFu);
-            r = static_cast<UINT8>( v        & 0xFFu);
+            // 값: 0xFFBBGGRR -> 메모리: R,G,B,A
+            r = static_cast<uint8_t>( v        & 0xFFu);
+            g = static_cast<uint8_t>((v >> 8)  & 0xFFu);
+            b = static_cast<uint8_t>((v >> 16) & 0xFFu);
             break;
 
         case PixelFormat::BGRA:
         default:
-            // 0xAARRGGBB
-            r = static_cast<UINT8>((v >> 16) & 0xFFu);
-            g = static_cast<UINT8>((v >> 8)  & 0xFFu);
-            b = static_cast<UINT8>( v        & 0xFFu);
+            // 값: 0xFFRRGGBB -> 메모리: B,G,R,A
+            b = static_cast<uint8_t>( v        & 0xFFu);
+            g = static_cast<uint8_t>((v >> 8)  & 0xFFu);
+            r = static_cast<uint8_t>((v >> 16) & 0xFFu);
             break;
         }
     }

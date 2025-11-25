@@ -119,44 +119,60 @@ namespace ribon::mem {
         if (!bs) return EFI_UNSUPPORTED;
 
         EFI_MEMORY_DESCRIPTOR* memMap = nullptr;
-        UINTN memMapSize = 0, mapKey, descSize;
-        UINT32 descVersion;
+        UINTN memMapSize = 0, mapKey = 0, descSize = 0;
+        UINT32 descVersion = 0;
 
-        // Get size
+        // 1) 크기 먼저 질의
         EFI_STATUS st = bs->GetMemoryMap(
-            &memMapSize, memMap, &mapKey, &descSize, &descVersion
+            &memMapSize,
+            memMap,
+            &mapKey,
+            &descSize,
+            &descVersion
         );
-        if (st != EFI_BUFFER_TOO_SMALL) return st;
-
-        // Allocate buffer
-        memMap = (EFI_MEMORY_DESCRIPTOR*) AllocatePool(EfiLoaderData, memMapSize, (void**)&memMap);
-        if (!memMap) return EFI_OUT_OF_RESOURCES;
-
-        // Get actual memory map
-        st = bs->GetMemoryMap(
-            &memMapSize, memMap, &mapKey, &descSize, &descVersion
-        );
-        if (EFI_ERROR(st)) {
-            FreePool(memMap);
+        if (st != EFI_BUFFER_TOO_SMALL) {
             return st;
         }
 
-        UINTN total = 0, freeM = 0;
+        // 2) 그 크기만큼 버퍼 할당
+        st = ribon::mem::AllocatePool(EfiLoaderData, memMapSize, (void**)&memMap);
+        if (EFI_ERROR(st) || !memMap) {
+            return EFI_OUT_OF_RESOURCES;
+        }
 
-        for (UINTN i = 0; i < memMapSize / descSize; i++) {
-            EFI_MEMORY_DESCRIPTOR* d = (EFI_MEMORY_DESCRIPTOR*)((UINT8*)memMap + i * descSize);
-            UINTN bytes = d->NumberOfPages * 4096;
+        // 3) 실제 메모리맵 읽기
+        st = bs->GetMemoryMap(
+            &memMapSize,
+            memMap,
+            &mapKey,
+            &descSize,
+            &descVersion
+        );
+        if (EFI_ERROR(st)) {
+            ribon::mem::FreePool(memMap);
+            return st;
+        }
+
+        UINTN total = 0;
+        UINTN freeM = 0;
+
+        const UINTN entryCount = memMapSize / descSize;
+        for (UINTN i = 0; i < entryCount; ++i) {
+            EFI_MEMORY_DESCRIPTOR* d =
+                (EFI_MEMORY_DESCRIPTOR*)((UINT8*)memMap + i * descSize);
+
+            const UINTN bytes = d->NumberOfPages * 4096;
 
             total += bytes;
-
-            if (d->Type == EfiConventionalMemory)
+            if (d->Type == EfiConventionalMemory) {
                 freeM += bytes;
+            }
         }
 
         *totalMemory = total;
         *freeMemory  = freeM;
 
-        FreePool(memMap);
+        ribon::mem::FreePool(memMap);
         return EFI_SUCCESS;
     }
 

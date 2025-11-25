@@ -1,7 +1,7 @@
 # bootldr/CMakeLists.txt
 cmake_minimum_required(VERSION 3.20)
 
-message(STATUS "[bootldr] Build Ribon EFI Bootloader")
+message(STATUS "[bootloader] Build Ribon EFI Bootloader")
 
 add_executable(RibonEFI
     main.cpp

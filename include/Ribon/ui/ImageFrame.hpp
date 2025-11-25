@@ -8,25 +8,18 @@
 
 namespace ribon::ui {
 
-    struct IFrameStyle {
-        bool rounded = false;   // radius 적용 여부
-        uint8_t radius = 0;
-
-        // 배경(이미지가 작거나 빈 공간 있을 경우)
-        uint8_t bg_r = 0, bg_g = 0, bg_b = 0, bg_a = 0;
-
-        // 테두리 옵션
-        bool border = false;
-        uint8_t border_r = 255, border_g = 255, border_b = 255, border_a = 255;
-    };
-
     class IFrame : public Widget {
     public:
-        IFrameStyle style;
-        ribon::gfx::Image image;
+        ribon::gfx::Image       image;
+        const CHAR16*           path = nullptr;   // 파일 경로 저장
+        bool                    loaded = false;   // 이미지 로드 여부 체크
 
         IFrame() {
             type = WidgetType::IFrame;
+        }
+
+        ~IFrame() {
+            image.unload();
         }
     };
 
@@ -38,25 +31,17 @@ namespace ribon::ui {
         if (!f) return nullptr;
 
         f->rect = { x, y, w, h };
-        f->parent = nullptr;
+        f->parent     = nullptr;
         f->childCount = 0;
-        f->isVisible = true;
+        f->isVisible  = true;
+        f->hasFocus   = false;
 
-        // 완전 투명 배경
-        f->style.bg_r = f->style.bg_g = f->style.bg_b = 0;
-        f->style.bg_a = 0;
-        f->style.rounded = false;
+        // PNG 경로만 저장
+        f->path = path;
+        f->loaded = false;
 
-        if (path) {
-            EFI_FILE_PROTOCOL* root = ribon::IO::getFileRoot();
-            if (root) {
-                f->image = ribon::gfx::Image::loadFromFile(root, path);
-            }
-        }
-
+        // 실제 PNG 크기는 drawIFrame에서 결정한다.
         return f;
     }
-
-
 
 } // namespace ribon::ui

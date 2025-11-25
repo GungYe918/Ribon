@@ -3,7 +3,9 @@
 #include <Ribon/Init.hpp>
 #include <Ribon/Print.hpp>
 #include <Ribon/Common.hpp>
+#include <Ribon/Screen.hpp>
 #include "doublebuffer.hpp"
+
 
 namespace ribon::fb::detail {
 
@@ -92,18 +94,25 @@ namespace ribon::fb {
         writePixelClamped((int)x, (int)y, rgba);
     }
 
-    // 화면 전체 clear
     void clear(UINT8 r, UINT8 g, UINT8 b) {
         UINT32* base = detail::resolveTargetBase();
         UINTN pitch  = detail::resolvePitch();
 
-        UINT32 color = (255u << 24) | (b << 16) | (g << 8) | r;
+        // Screen 이 아직 초기화 되지 않았다면 RGBA 기본값으로 가정
+        ribon::gfx::PixelFormat fmt = ribon::gfx::PixelFormat::RGBA;
+        const auto& scr = ribon::gfx::getScreen();
+        if (scr.width != 0 && scr.height != 0) {
+            fmt = scr.format;
+        }
+
+        UINT32 color = ribon::gfx::makePixel(r, g, b, fmt);
         UINTN totalPixels = pitch * detail::gFB.height;
 
         for (UINTN i = 0; i < totalPixels; i++) {
             base[i] = color;
         }
     }
+
 
     void debugDump(UINTN count) {
         ribon::IO::Print<ribon::IO::Tags::DEBUG>("FB Dump (first %d dwords):\n", count);

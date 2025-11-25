@@ -64,6 +64,10 @@ namespace ribon::coord::transform {
         };
     }
 
+    inline Point toPoint(const Rect& rc) {
+        return Point{ rc.x, rc.y };
+    }
+
     /**
      * @brief AbsolutePos -> Rect
      */
