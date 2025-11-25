@@ -78,6 +78,7 @@ namespace ribon::ui {
 
     // Rerendering 호출
     void requestUiRedraw();
-    bool consumeUiRedrawFlag();
+    void requestUiEndLoop();
 
+    
 } // namespace ribon::ui
