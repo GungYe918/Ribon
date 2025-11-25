@@ -27,7 +27,7 @@ namespace ribon::loaderPkg {
         }
 
         /** @brief 정젹 다형성 Derived::load 호출 */
-        constexpr bool load(const void* file, UINTN size) const {
+        constexpr bool load(const void* file, UINTN size) {
             return static_cast<Derived*>(this)->load(file, size);
         }
 
