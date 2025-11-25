@@ -99,13 +99,31 @@ namespace ribon::IO {
 
 } // namespace ribon::IO
 
-//
-// Attributes
-//
-#define EFI_FILE_READ_ONLY           0x00000001
-#define EFI_FILE_HIDDEN              0x00000002
-#define EFI_FILE_SYSTEM              0x00000004
-#define EFI_FILE_RESERVED            0x00000008
-#define EFI_FILE_DIRECTORY           0x00000010
-#define EFI_FILE_ARCHIVE             0x00000020
-#define EFI_FILE_VALID_ATTR          0x00000037
+
+#ifndef EFI_FILE_READ_ONLY
+#define EFI_FILE_READ_ONLY   0x0000000000000001ULL
+#endif
+
+#ifndef EFI_FILE_HIDDEN
+#define EFI_FILE_HIDDEN      0x0000000000000002ULL
+#endif
+
+#ifndef EFI_FILE_SYSTEM
+#define EFI_FILE_SYSTEM      0x0000000000000004ULL
+#endif
+
+#ifndef EFI_FILE_RESERVED
+#define EFI_FILE_RESERVED    0x0000000000000008ULL
+#endif
+
+#ifndef EFI_FILE_DIRECTORY
+#define EFI_FILE_DIRECTORY   0x0000000000000010ULL
+#endif
+
+#ifndef EFI_FILE_ARCHIVE
+#define EFI_FILE_ARCHIVE     0x0000000000000020ULL
+#endif
+
+#ifndef EFI_FILE_VALID_ATTR
+#define EFI_FILE_VALID_ATTR  0x0000000000000037ULL
+#endif
