@@ -9,6 +9,20 @@
 namespace ribon::ui::detail {
 
     bool g_externalDirty = false;
+    bool g_requestEnd    = false;
+
+    // runUiLoop 내부에서만 사용
+    bool consumeUiRedrawFlag() {
+        bool v = g_externalDirty;
+        g_externalDirty = false;
+        return v;
+    }
+
+    bool consumeUiEndLoopFlag() {
+        bool v = g_requestEnd;
+        g_requestEnd = false;
+        return v;
+    }
 
 } // namespace ribon::ui::detail
 
@@ -51,9 +65,13 @@ void ribon::ui::runUiLoop(const UiLoopConfig& cfg) {
             if (changed) dirty = true;
         }
 
-        // ★ Print/ConsoleOverlay 등에서 요청한 redraw 반영
-        if (consumeUiRedrawFlag()) {
+        // Print/ConsoleOverlay 등에서 요청한 redraw 반영
+        if (detail::consumeUiRedrawFlag()) {
             dirty = true;
+        }
+
+        if (detail::consumeUiEndLoopFlag()) {
+            return;
         }
 
         if (dirty) {
@@ -62,7 +80,7 @@ void ribon::ui::runUiLoop(const UiLoopConfig& cfg) {
             size_t rootCount = ribon::ui::getRootWidgetCount();
             Widget** roots = ribon::ui::getRootWidgetList();
 
-            // ★ ConsoleOverlay는 나중에 따로 그리기 위해 잡아둠
+            // ConsoleOverlay는 나중에 따로 그리기 위해 잡아둠
             Widget* overlay = nullptr;
 
             for (size_t i = 0; i < rootCount; ++i) {
@@ -102,9 +120,6 @@ void ribon::ui::requestUiRedraw() {
     detail::g_externalDirty = true;
 }
 
-// runUiLoop 내부에서만 사용
-bool ribon::ui::consumeUiRedrawFlag() {
-    bool v = detail::g_externalDirty;
-    detail::g_externalDirty = false;
-    return v;
+void ribon::ui::requestUiEndLoop() {
+    detail::g_requestEnd = true;
 }
