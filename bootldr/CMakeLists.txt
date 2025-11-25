@@ -34,8 +34,9 @@ target_link_libraries(RibonEFI
     ribon_gfx
     ribon_ui
     ribon_arch
-    
     ribon_rt
+
+    loaderPkg
 )
 
 set_target_properties(RibonEFI PROPERTIES

@@ -2,7 +2,7 @@
 #pragma once
 
 #include <Uefi.h>
-#include <Ribon/Memory.hpp>
+
 
 namespace ribon::loaderPkg {
 
@@ -16,7 +16,7 @@ namespace ribon::loaderPkg {
      *      bool   load(const void* file, UINTN size);
      *      UINT64 entryPoint() const;
      */
-    template <typename Derived>
+    template <typename Derived, typename KernelParam = void>
     class LoaderBase {
     public:
         constexpr LoaderBase() = default;
@@ -34,6 +34,11 @@ namespace ribon::loaderPkg {
         /** @brief 정젹 다형성 Derived::entryPoint 호출 */
         constexpr UINT64 entryPoint() const {
             return static_cast<const Derived*>(this)->entryPoint();
+        }
+
+        /** @brief ExitBootServices 구현 - 각 loader마다 별도 */
+        bool exitBootServices() {
+            return static_cast<Derived*>(this)->exitBootServices();
         }
     };
 

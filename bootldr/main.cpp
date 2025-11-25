@@ -9,6 +9,10 @@
 
 #include <Ribon/InputSystem.hpp>
 
+#include <loaderPkg/MultibootLoader.hpp>
+#include <loaderPkg/BootLogic.hpp>
+
+
 #include <Ribon/Ui.hpp>
 #include <Ribon/Common.hpp>
 
@@ -104,7 +108,7 @@ EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
     Label* label1 = createLabel(120, 150, "Ribon Bootloader UI Test");
     label1->r = 255; label1->g = 230; label1->b = 230; label1->a = 255;
 
-    Button* btn1 = createButton(120, 200, 160, 40, "Start OS");
+    Button* btn1 = createButton(120, 200, 160, 40, "CreateButton");
     setButtonCallback(btn1, StartOsCallback);
     btn1->r = 70; btn1->g = 120; btn1->b = 200; btn1->a = 255;
 
