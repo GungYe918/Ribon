@@ -16,40 +16,91 @@
 #include <Ribon/Ui.hpp>
 #include <Ribon/Common.hpp>
 
-void TestImage() {
-    {
-        using namespace ribon;
-        using namespace ribon::gfx;
 
-        // 1) Root 디렉토리 열기
-        EFI_FILE_PROTOCOL* root = getFileRoot();
+void BootKernelCallback(void*) {
+    using namespace ribon;
+    using namespace ribon::loaderPkg::boot;
+    using namespace ribon::loaderPkg;
+    using namespace ribon::IO;
 
-        // 2) PNG 로드 (ESP/logo.png)
-        ribon::str::Utf16String path16("\\test.png");
-        Image img = Image::loadFromFile(root, path16.c_str());
+    // 화면 상태 메시지 출력
+    ui::showMessageLabel(100, 500, "Booting kernel...");
 
-        if (!img.data) {
-            IO::Print("[ERR] Image load fail\n");
-            return;
-        }
-
-        IO::Print("[INFO] PNG loaded: %dx%d\n", img.width, img.height);
-
-        // 3) 화면 중앙에 이미지 렌더링
-        auto fb = ribon::fb::getFramebuffer();
-        int cx = (int)(fb->width / 2 - img.width / 2);
-        int cy = (int)(fb->height / 2 - img.height / 2);
-
-        drawImage(cx, cy, img);
-
-        // 4) 나중에 해제
-        img.unload();
+    //
+    // 1) ESP 루트에서 커널 파일 읽기
+    //
+    EFI_FILE_PROTOCOL* root = ribon::getFileRoot();
+    if (!root) {
+        ui::showMessageLabel(100, 530, "ERR: No filesystem root.");
+        return;
     }
+
+    // 일단 테스트용 이름: \kernel.elf
+    str::Utf16String kernelPath("\\kernel\\kernel.elf");
+
+    EFI_FILE_PROTOCOL* kfile = IO::openFile(kernelPath.c_str(), EFI_FILE_MODE_READ);
+    if (!kfile) {
+        ui::showMessageLabel(100, 530, "ERR: kernel.elf not found");
+        return;
+    }
+
+    UINT64 ksize = IO::fileSize(kfile);
+    if (ksize == 0) {
+        ui::showMessageLabel(100, 530, "ERR: Kernel size = 0");
+        return;
+    }
+
+    void* kbuf = nullptr;
+    if (EFI_ERROR(mem::AllocatePool(EfiLoaderData, ksize, &kbuf))) {
+        ui::showMessageLabel(100, 530, "ERR: No memory for kernel");
+        return;
+    }
+
+    UINTN readSize = 0;
+    if (!IO::readFile(kfile, kbuf, (UINTN)ksize, &readSize)) {
+        ui::showMessageLabel(100, 530, "ERR: Kernel read fail");
+        return;
+    }
+
+    kfile->Close(kfile);
+
+    //
+    // 2) BootLogic + Loader 등록
+    //
+    static BootLogic bootLogic;
+    static MultibootLoader mbLoader;
+
+    bootLogic.registerLoader(&mbLoader);
+    bootLogic.setKernel(kbuf, (UINTN)ksize);
+
+    //
+    // 3) probe + load
+    //
+    if (!bootLogic.boot()) {
+        ui::showMessageLabel(100, 530, "ERR: Boot failed (no matching loader)");
+        return;
+    }
+
+    ui::showMessageLabel(100, 540, "Kernel loaded. ExitBootServices...");
+
+    ribon::ui::requestUiEndLoop();
+
+    //
+    // 4) 그래픽/UI 종료 -> ExitBootServices
+    //
+    if (!bootLogic.exitBootServices()) {
+        // ExitBootServices 실패시 그래픽 출력 불가 -> fallback 없음
+        return;
+    }
+
+    //
+    // 5) 이제 실제 커널로 점프 (반환 없음)
+    //
+    bootLogic.jumpToKernel();
+
+    // 여기까지 올 일 없음
 }
 
-void StartOsCallback(void*) {
-    ribon::ui::showMessageLabel(100, 500, "Start OS pressed!");
-}
 
 void SettingsCallback(void*) {
     ribon::ui::showMessageLabel(100, 520, "Settings pressed!");
@@ -109,7 +160,7 @@ EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
     label1->r = 255; label1->g = 230; label1->b = 230; label1->a = 255;
 
     Button* btn1 = createButton(120, 200, 160, 40, "CreateButton");
-    setButtonCallback(btn1, StartOsCallback);
+    setButtonCallback(btn1, BootKernelCallback);
     btn1->r = 70; btn1->g = 120; btn1->b = 200; btn1->a = 255;
 
     Button* btn2 = createButton(120, 250, 160, 40, "Settings");
