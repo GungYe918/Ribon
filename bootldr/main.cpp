@@ -11,6 +11,8 @@
 
 #include <loaderPkg/MultibootLoader.hpp>
 #include <loaderPkg/BootLogic.hpp>
+#include <loaderPkg/FiascoLoader.hpp>
+#include <loaderPkg/LBPBLoader.hpp>
 
 
 #include <Ribon/Ui.hpp>
@@ -67,9 +69,14 @@ void BootKernelCallback(void*) {
     //
     // 2) BootLogic + Loader 등록
     //
-    static BootLogic bootLogic;
-    static MultibootLoader mbLoader;
+    static BootLogic        bootLogic;
+    static MultibootLoader  mbLoader;
+    static FiascoLoader     fiasLoader;
+    static LBPBLoader       lbpbLoader;
 
+    // 등록 순서에 따라 우선순위 결정
+    bootLogic.registerLoader(&lbpbLoader);
+    bootLogic.registerLoader(&fiasLoader);
     bootLogic.registerLoader(&mbLoader);
     bootLogic.setKernel(kbuf, (UINTN)ksize);
 
@@ -93,9 +100,7 @@ void BootKernelCallback(void*) {
         return;
     }
 
-    //
     // 5) 이제 실제 커널로 점프 (반환 없음)
-    //
     bootLogic.jumpToKernel();
 
     // 여기까지 올 일 없음
