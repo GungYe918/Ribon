@@ -3,6 +3,7 @@
 #include <Ribon/EfiContext.hpp>
 
 #include "LoaderBase.hpp"
+#include "leyn_bpb.h"
 
 namespace ribon::loaderPkg::boot {
 
@@ -73,19 +74,39 @@ namespace ribon::loaderPkg::boot {
             return entry_;
         }
 
+        // For Now - 나중에는 이 부분을 multi loader지원을 위하여 추상화해야함. 
         // 엔트리 주소로 실제 점프
         //
         // NOTE: UEFI -> 커널 점프에서는 ExitBootServices를
         //       먼저 외부에서 호출해야 한다.
         //
-        void jumpToKernel() const {
-            using KernelEntry = void (*)();
-            if (entry_ == 0) return;
+        void jumpToKernel() {
+            if (chosenIndex_ >= loaderCount_) {
+                return;
+            }
 
-            KernelEntry func = reinterpret_cast<KernelEntry>(entry_);
-            func();  // 커널 진입 (반환 없음이 정상)
+            LoaderSlot& slot = slots_[chosenIndex_];
+
+            // e_entry (보통 _start)의 주소
+            UINT64 entry_addr = slot.ops.entryPoint(slot.instance);
+
+            auto* leyn_loader = static_cast<LBPBLoader*>(slot.instance);
+            const leyn_bpb_header* bpb_ptr = leyn_loader->bpb();
+
+            // 여기서부터는 “C 함수 호출”이 아니라
+            // 우리가 직접 RDI에 인자를 넣고, e_entry로 jmp하는 핸드오버로 본다.
+            asm volatile(
+                "mov %0, %%rdi\n"   // SysV 규약: 첫 인자 RDI에 bpb 포인터 넣기
+                "jmp *%1\n"         // e_entry(_start)로 점프 (절대 리턴 안 함)
+                :
+                : "r"(bpb_ptr), "r"(entry_addr)
+                : "rdi"
+            );
+
+            __builtin_unreachable();
         }
 
+        
     private:
         // 로더 하나에 대한 함수 포인터 테이블
         struct LoaderOps {

@@ -9,10 +9,10 @@
 
 #include <Ribon/InputSystem.hpp>
 
+#include <loaderPkg/LBPBLoader.hpp>
 #include <loaderPkg/MultibootLoader.hpp>
 #include <loaderPkg/BootLogic.hpp>
 #include <loaderPkg/FiascoLoader.hpp>
-#include <loaderPkg/LBPBLoader.hpp>
 
 
 #include <Ribon/Ui.hpp>
@@ -76,8 +76,8 @@ void BootKernelCallback(void*) {
 
     // 등록 순서에 따라 우선순위 결정
     bootLogic.registerLoader(&lbpbLoader);
-    bootLogic.registerLoader(&fiasLoader);
-    bootLogic.registerLoader(&mbLoader);
+    //bootLogic.registerLoader(&fiasLoader);
+    //bootLogic.registerLoader(&mbLoader);
     bootLogic.setKernel(kbuf, (UINTN)ksize);
 
     //

@@ -1,58 +1,11 @@
+// Ribon - LBPBLoader.hpp (정석 재구현)
 #pragma once
 #include "LoaderBase.hpp"
 #include <Ribon/Elf.hpp>
 #include <Ribon/EfiContext.hpp>
 #include <Ribon/Memory.hpp>
 
-extern "C" {
-    #include "leyn_bpb.h"
-}
-
-namespace ribon::loaderPkg::detail {
-
-    // Leyn 커널 엔트리 프로토타입:
-    //   void leyn_kernel_main(const leyn_bpb_header* bpb);
-    using LeynKernelEntryFn = void (*)(const leyn_bpb_header*);
-
-    // 실제 Leyn 커널 엔트리 주소 (ELF e_entry)
-    static LeynKernelEntryFn g_leyn_kernel_entry = nullptr;
-
-    // BPB 헤더 시작 주소 (커널에는 이 포인터를 전달)
-    static leyn_bpb_header* g_leyn_bpb = nullptr;
-
-    // Leyn 커널로 최종 점프하는 트램폴린
-    // BootLogic::jumpToKernel()은 항상 인자 없는 void(*)를 호출하므로,
-    // 여기서 BPB 포인터를 인자로 넣어 Leyn 커널 엔트리를 호출한다.
-    static void LeynKernelEntryStub() {
-        if (!g_leyn_kernel_entry || !g_leyn_bpb) {
-            // 어떻게든 여기 오면 이미 망한 상황이므로 그냥 halt loop
-            for (;;) {
-            #if defined(__x86_64__) || defined(_M_X64)
-                __asm__ volatile("hlt");
-            #else
-                // 다른 아키텍처일 경우에도 무한 루프
-            #endif
-            }
-        }
-
-        // Leyn 커널 진입 (반환 없음이 정상)
-        g_leyn_kernel_entry(g_leyn_bpb);
-
-        // 여기까지 오면 비정상. 그냥 멈춘다.
-        for (;;) {
-        #if defined(__x86_64__) || defined(_M_X64)
-            __asm__ volatile("hlt");
-        #else
-        #endif
-        }
-    }
-
-} // namespace ribon::loaderPkg::detail
-
-
-// --------------------
-// LBPBLoader 본체
-// --------------------
+#include "leyn_bpb.h"
 
 namespace ribon::loaderPkg {
 
@@ -73,23 +26,23 @@ namespace ribon::loaderPkg {
             if (!IS_ELF(*eh) || !IS_ELF64(*eh))
                 return false;
 
-            // 아키텍처 체크 (x86_64)
             if (eh->e_machine != EM_X86_64)
                 return false;
 
-            // TODO: 나중에 Leyn 전용 ELF note/section을 넣어서 더 강하게 필터링 가능
             return true;
         }
 
         // --------------------------------------------------------------
         // 2) ELF64 커널 로드
         //
-        //    - PT_LOAD 세그먼트를 p_vaddr로 복사
+        //    - PT_LOAD 세그먼트를 "물리주소"로 간주한 p_paddr(없으면 p_vaddr)에 복사
         //    - BSS 0으로 초기화
-        //    - 진짜 커널 엔트리는 g_leyn_kernel_entry에 저장
-        //    - BootLogic에는 트램폴린(LeynKernelEntryStub) 주소를 entry_로 넘김
+        //    - 실제 커널 엔트리를 kernel_entry_에 저장
+        //    - entry_에는 "실제 커널 엔트리 주소"를 넣어둔다.
         // --------------------------------------------------------------
         bool load(const void* file, UINTN size) {
+            using namespace ribon::mem;
+
             if (!file || size < sizeof(Elf64_Ehdr))
                 return false;
 
@@ -101,54 +54,73 @@ namespace ribon::loaderPkg {
                 return false;
 
             const auto* base = reinterpret_cast<const UINT8*>(file);
-            const auto* ph   = reinterpret_cast<const Elf64_Phdr*>(base + eh->e_phoff);
 
-            // program header 범위 체크
-            if (eh->e_phoff + eh->e_phnum * sizeof(Elf64_Phdr) > size)
+            if (eh->e_phoff == 0 || eh->e_phnum == 0)
                 return false;
 
-            // 커널 물리 영역 대략 추적 (필요하면 IMAGE_LOAD_BASE 섹션 등에 쓸 수 있음)
+            const UINT64 ph_end =
+                static_cast<UINT64>(eh->e_phoff) +
+                static_cast<UINT64>(eh->e_phnum) * sizeof(Elf64_Phdr);
+
+            if (ph_end > size)
+                return false;
+
+            const auto* ph = reinterpret_cast<const Elf64_Phdr*>(base + eh->e_phoff);
+
+            // 커널 로드 영역 추적
             UINT64 phys_min = ~UINT64(0);
             UINT64 phys_max = 0;
 
-            for (UINTN i = 0; i < eh->e_phnum; ++i) {
-                const auto& p = ph[i];
+            for (UINT16 i = 0; i < eh->e_phnum; ++i) {
+                const Elf64_Phdr& p = ph[i];
                 if (p.p_type != PT_LOAD)
+                    continue;
+
+                if (p.p_memsz == 0)
                     continue;
 
                 if (p.p_offset + p.p_filesz > size)
                     return false; // 잘못된 ELF
 
-                UINT8*       dst    = reinterpret_cast<UINT8*>(static_cast<UINTN>(p.p_vaddr));
+                // 물리 목적지: p_paddr가 있으면 우선, 아니면 p_vaddr 사용
+                UINT64 phys = (p.p_paddr != 0) ? p.p_paddr : p.p_vaddr;
+
+                UINT8*       dst    = reinterpret_cast<UINT8*>(static_cast<UINTN>(phys));
                 const UINT8* src    = base + p.p_offset;
                 const UINTN  filesz = static_cast<UINTN>(p.p_filesz);
                 const UINTN  memsz  = static_cast<UINTN>(p.p_memsz);
 
                 // 파일 영역 복사
                 if (filesz > 0) {
-                    ribon::mem::Memcpy(dst, src, filesz);
+                    Memcpy(dst, src, filesz);
                 }
 
-                // BSS 영역 0으로 초기화
+                // BSS 0으로 초기화
                 if (memsz > filesz) {
-                    ribon::mem::Memset(dst + filesz, 0, memsz - filesz);
+                    Memset(dst + filesz, 0, memsz - filesz);
                 }
 
-                if (p.p_memsz > 0) {
-                    UINT64 seg_start = p.p_vaddr;
-                    UINT64 seg_end   = p.p_vaddr + p.p_memsz;
-                    if (seg_start < phys_min) phys_min = seg_start;
-                    if (seg_end   > phys_max) phys_max = seg_end;
-                }
+                UINT64 seg_start = phys;
+                UINT64 seg_end   = phys + p.p_memsz;
+                if (seg_start < phys_min) phys_min = seg_start;
+                if (seg_end   > phys_max) phys_max = seg_end;
             }
 
-            // 진짜 Leyn 커널 엔트리 (BPB를 인자로 받는 함수로 가정)
-            detail::g_leyn_kernel_entry = reinterpret_cast<detail::LeynKernelEntryFn>(eh->e_entry);
+            if (phys_max <= phys_min)
+                return false;
 
-            // BootLogic이 호출할 엔트리는 트램폴린으로 설정
-            entry_ = reinterpret_cast<UINT64>(&detail::LeynKernelEntryStub);
+            // Leyn 커널 엔트리는 BPB 포인터 1개를 인자로 받는 함수로 가정
+            kernel_entry_ = reinterpret_cast<LeynKernelEntryFn>(
+                static_cast<UINTN>(eh->e_entry)
+            );
+            if (!kernel_entry_)
+                return false;
 
-            // (필요하면 phys_min/phys_max를 나중에 aux_data 등에 사용할 수 있음)
+            // BootLogic/외부 코드가 가져갈 엔트리 주소
+            entry_ = static_cast<UINT64>(
+                reinterpret_cast<UINTN>(kernel_entry_)
+            );
+
             kernel_phys_start_ = phys_min;
             kernel_phys_end_   = phys_max;
 
@@ -158,28 +130,24 @@ namespace ribon::loaderPkg {
         // --------------------------------------------------------------
         // 3) ExitBootServices + Leyn BPB 빌드
         //
-        //    - EFI 메모리 맵 2단계 획득
-        //    - 그 안에서:
-        //        * BASIC_MEMINFO
-        //        * MEMORY_MAP(e820 스타일)
-        //        * EFI_MEMORY_MAP(원본)
-        //        * EFI_SYSTEM_TABLE 포인터
-        //        * EFI_IMAGE_HANDLE 포인터
-        //        * FRAMEBUFFER_INFO (UEFI GOP 기준)
-        //        * UEFI_GOP_MODE
-        //        * BOOTLOADER_NAME / BOOT_CMDLINE
-        //      섹션들을 BPB 버퍼 안에 차례로 구성
-        //    - g_leyn_bpb = BPB 헤더 포인터
+        //    - UEFI 메모리 맵 획득 (최종 GetMemoryMap 이후에는 Allocate/Free 금지)
+        //    - BPB 버퍼 안에 각종 섹션 구성
+        //    - bpb_header_에 BPB 헤더 포인터 저장
         //    - ExitBootServices 호출
         // --------------------------------------------------------------
-        bool exitBootServices()
-        {
-            auto* bs = ribon::getBS();
-            auto* st = ribon::getST();
-            auto  ih = ribon::getImageHandle();
-            auto* gop = ribon::getGop();
+        bool exitBootServices() {
+            using namespace ribon;
+            using namespace ribon::mem;
+
+            EFI_BOOT_SERVICES*  bs  = getBS();
+            EFI_SYSTEM_TABLE*   st  = getST();
+            EFI_HANDLE          ih  = getImageHandle();
+            EFI_GRAPHICS_OUTPUT_PROTOCOL* gop = getGop();
 
             if (!bs || !st || !ih)
+                return false;
+
+            if (!kernel_entry_)
                 return false;
 
             EFI_STATUS status;
@@ -188,50 +156,102 @@ namespace ribon::loaderPkg {
             UINTN descSize  = 0;
             UINT32 descVer  = 0;
 
-            // 1) 메모리 맵 크기 질의
-            status = bs->GetMemoryMap(&mapSize, nullptr, &mapKey, &descSize, &descVer);
-            if (status != EFI_BUFFER_TOO_SMALL)
+            // ------------------------------------------------------
+            // 3-1) 메모리 맵 크기 질의 (첫 GetMemoryMap)
+            // ------------------------------------------------------
+            status = bs->GetMemoryMap(&mapSize,
+                                      nullptr,
+                                      &mapKey,
+                                      &descSize,
+                                      &descVer);
+            if (status != EFI_BUFFER_TOO_SMALL) {
                 return false;
+            }
 
-            // BPB에 메모리 맵도 복사할 거라서 대략 2배 + 여유분 정도 잡는다.
+            // 약간의 여유를 준다
+            mapSize += descSize * 2;
+
+            // BPB에 들어갈 최대 섹션 수 (현재 구조 기준 넉넉히)
             constexpr UINTN MAX_SECTIONS = 32;
+
+            // BPB 버퍼 크기 대략 잡기:
+            //  - 헤더
+            //  - 섹션 테이블
+            //  - payload 정렬 여유 + memMap 두 번 정도 + 기타 섹션 여유
             UINTN bpbAllocSize =
                 sizeof(leyn_bpb_header) +
                 LEYN_BPB_SECTION_TABLE_ALIGN +
                 MAX_SECTIONS * sizeof(leyn_bpb_section) +
                 LEYN_BPB_SECTION_PAYLOAD_ALIGN +
-                mapSize * 2 + 4096;
+                mapSize * 2 +
+                4096;
 
+            // ------------------------------------------------------
+            // 3-2) 커널 영역과 겹치지 않도록 풀 할당 헬퍼
+            //      (모든 Allocate/Free는 최종 GetMemoryMap 이전에 끝낸다)
+            // ------------------------------------------------------
+            auto alloc_non_overlap = [this](EFI_MEMORY_TYPE type,
+                                            UINTN size,
+                                            void** out) -> EFI_STATUS
+            {
+                using namespace ribon::mem;
+
+                for (int attempt = 0; attempt < 8; ++attempt) {
+                    void* buf = nullptr;
+                    EFI_STATUS st = AllocatePool(type, size, &buf);
+                    if (EFI_ERROR(st)) return st;
+
+                    UINT64 start = static_cast<UINT64>(reinterpret_cast<UINTN>(buf));
+                    UINT64 end   = start + size;
+
+                    bool overlap =
+                        !(end <= kernel_phys_start_ || start >= kernel_phys_end_);
+
+                    if (!overlap) {
+                        *out = buf;
+                        return EFI_SUCCESS;
+                    }
+
+                    // 겹치면 버리고 다시 시도
+                    FreePool(buf);
+                }
+                return EFI_OUT_OF_RESOURCES;
+            };
+
+            // 3-3) 메모리 맵 버퍼 + BPB 버퍼를 먼저 모두 할당한다
+            EFI_MEMORY_DESCRIPTOR* memMap = nullptr;
             void* bpbBuf = nullptr;
-            status = ribon::mem::AllocatePool(EfiLoaderData, bpbAllocSize, &bpbBuf);
+
+            status = alloc_non_overlap(EfiLoaderData, mapSize, (void**)&memMap);
+            if (EFI_ERROR(status) || !memMap)
+                return false;
+
+            status = alloc_non_overlap(EfiLoaderData, bpbAllocSize, &bpbBuf);
             if (EFI_ERROR(status) || !bpbBuf)
                 return false;
 
-            EFI_MEMORY_DESCRIPTOR* memMap = nullptr;
-            status = ribon::mem::AllocatePool(EfiLoaderData, mapSize, (void**)&memMap);
-            if (EFI_ERROR(status) || !memMap) {
-                ribon::mem::FreePool(bpbBuf);
-                return false;
-            }
-
-            // 2) 실제 메모리 맵 획득 (이 이후로는 성공 경로에서는 Allocate/Free 안 하는게 안전)
-            status = bs->GetMemoryMap(&mapSize, memMap, &mapKey, &descSize, &descVer);
+            // 3-4) 이제 "최종" GetMemoryMap 을 호출한다.
+            //      이 이후로는 Allocate/Free를 하지 않는다.
+            status = bs->GetMemoryMap(&mapSize,
+                                      memMap,
+                                      &mapKey,
+                                      &descSize,
+                                      &descVer);
             if (EFI_ERROR(status)) {
-                ribon::mem::FreePool(memMap);
-                ribon::mem::FreePool(bpbBuf);
+                // 아직 BootServices 살아있으므로 해제 가능
+                FreePool(memMap);
+                FreePool(bpbBuf);
                 return false;
             }
 
-            // ------------------------------------------------------------------
-            //  BPB 빌드 시작
-            // ------------------------------------------------------------------
+            // ------------------------------------------------------
+            // 3-5) BPB 빌드 (기존 코드 구조 유지, Memcpy/Memset만 사용)
+            // ------------------------------------------------------
             UINT8* bpb_start = static_cast<UINT8*>(bpbBuf);
             UINT8* bpb_end   = bpb_start + bpbAllocSize;
 
-            // 전체 버퍼를 0으로 초기화 (선택 사항이지만 디버깅에 유리)
-            ribon::mem::Memset(bpb_start, 0, bpbAllocSize);
+            Memset(bpb_start, 0, bpbAllocSize);
 
-            // 헤더
             auto* header = reinterpret_cast<leyn_bpb_header*>(bpb_start);
             header->magic         = LEYN_BPB_MAGIC;
             header->version_major = LEYN_BPB_VERSION_MAJOR;
@@ -239,26 +259,21 @@ namespace ribon::loaderPkg {
             header->arch          = LEYN_BPB_ARCH_X86_64;
             header->arch_reserved = 0;
             header->header_size   = sizeof(leyn_bpb_header);
-            header->total_size    = 0;      // 나중에 채움
-            header->section_count = 0;      // 나중에 채움
+            header->total_size    = 0;   // 나중에 채움
+            header->section_count = 0;
 
-            // BPB 플래그 기본값
             uint32_t hdr_flags = 0;
             hdr_flags |= LEYN_BPB_FLAG_LITTLE_ENDIAN;
             hdr_flags |= LEYN_BPB_FLAG_64BIT_ADDR;
             hdr_flags |= LEYN_BPB_FLAG_EFI_BOOT;
-            // ExitBootServices()는 이 함수 끝에서 호출하므로
-            // 커널 입장에서는 이미 BootServices가 꺼진 상태 → ON 플래그는 세우지 않음
-
             header->flags = hdr_flags;
 
-            // 커널 엔트리 주소 (가상 주소로 취급)
+            // 커널 엔트리 (가상 주소)
             header->kernel_entry_vaddr =
-                static_cast<uint64_t>(reinterpret_cast<UINTN>(detail::g_leyn_kernel_entry));
+                static_cast<uint64_t>(reinterpret_cast<UINTN>(kernel_entry_));
             header->flags |= LEYN_BPB_FLAG_ENTRY_VIRT_VALID;
-            header->checksum = 0; // 체크섬 미사용 (FLAG_HAS_CHECKSUM 미설정)
+            header->checksum = 0; // 아직 체크섬 미사용
 
-            // 헤더 뒤의 섹션 테이블 시작 위치 정렬
             auto align_up = [](UINTN v, UINTN a) -> UINTN {
                 return (v + (a - 1)) & ~(a - 1);
             };
@@ -267,20 +282,24 @@ namespace ribon::loaderPkg {
             cur_off = align_up(cur_off, LEYN_BPB_SECTION_TABLE_ALIGN);
 
             if (bpb_start + cur_off > bpb_end) {
-                // BPB 버퍼가 너무 작음
+                // BootServices 살아있으므로 해제 가능
+                FreePool(memMap);
+                FreePool(bpbBuf);
                 return false;
             }
 
             auto* section_array = reinterpret_cast<leyn_bpb_section*>(bpb_start + cur_off);
             UINT32 section_count = 0;
 
-            // 섹션 테이블 끝 이후 페이로드 시작 위치 정렬
             UINTN sec_table_bytes = MAX_SECTIONS * sizeof(leyn_bpb_section);
             cur_off += sec_table_bytes;
             cur_off = align_up(cur_off, LEYN_BPB_SECTION_PAYLOAD_ALIGN);
 
-            if (bpb_start + cur_off > bpb_end)
+            if (bpb_start + cur_off > bpb_end) {
+                FreePool(memMap);
+                FreePool(bpbBuf);
                 return false;
+            }
 
             UINT8* payload_cursor = bpb_start + cur_off;
 
@@ -288,9 +307,7 @@ namespace ribon::loaderPkg {
                 return (payload_cursor + need) <= bpb_end;
             };
 
-            // ------------------------------------------------------------------
-            //  헬퍼: 새 섹션 한 개 등록 (payload 미리 있는 경우)
-            // ------------------------------------------------------------------
+            // 헬퍼: 섹션 추가 (payload 복사)
             auto add_section_copy = [&](uint32_t type,
                                         uint16_t flags,
                                         uint16_t alignment,
@@ -325,21 +342,17 @@ namespace ribon::loaderPkg {
                 sec.aux_data           = aux_data;
 
                 if (payload_size && payload) {
-                    ribon::mem::Memcpy(payload_cursor, payload, payload_size);
+                    Memcpy(payload_cursor, payload, payload_size);
                 }
 
                 payload_cursor += payload_size;
                 return true;
             };
 
-            // ------------------------------------------------------------------
-            //  3-1) BASIC_MEMINFO 섹션
-            //       (Multiboot mem_lower/mem_upper에 대응)
-            // ------------------------------------------------------------------
+            // ---------------- BASIC_MEMINFO ----------------
             leyn_bpb_basic_meminfo basic{};
-            basic.mem_lower_kb = 640; // 통상적인 0~640KB
+            basic.mem_lower_kb = 640; // 전통적인 BIOS 값
 
-            // mem_upper_kb = 1MB 이상 usable RAM 합계 / 1KB
             {
                 UINTN offset = 0;
                 uint64_t upper_bytes = 0;
@@ -355,9 +368,8 @@ namespace ribon::loaderPkg {
                         uint64_t end   = start + size;
 
                         if (end > 0x100000ULL) {
-                            uint64_t upper_start = (start < 0x100000ULL)
-                                                 ? 0x100000ULL
-                                                 : start;
+                            uint64_t upper_start =
+                                (start < 0x100000ULL) ? 0x100000ULL : start;
                             upper_bytes += (end - upper_start);
                         }
                     }
@@ -377,12 +389,12 @@ namespace ribon::loaderPkg {
                     &basic,
                     sizeof(basic)))
             {
+                FreePool(memMap);
+                FreePool(bpbBuf);
                 return false;
             }
 
-            // ------------------------------------------------------------------
-            //  3-2) MEMORY_MAP 섹션 (e820 스타일)
-            // ------------------------------------------------------------------
+            // ---------------- MEMORY_MAP (leyn e820 스타일) ----------------
             auto map_efi_to_leyn_type = [](UINT32 t) -> uint32_t {
                 switch (t) {
                 case EfiConventionalMemory:
@@ -399,7 +411,6 @@ namespace ribon::loaderPkg {
             };
 
             {
-                // 엔트리 개수 대략
                 UINTN max_entries = mapSize / descSize;
                 UINTN aligned_off = align_up(
                     static_cast<UINTN>(payload_cursor - bpb_start),
@@ -408,8 +419,11 @@ namespace ribon::loaderPkg {
                 UINT8* mm_ptr = bpb_start + aligned_off;
                 payload_cursor = mm_ptr;
 
-                if (!ensure_space(max_entries * sizeof(leyn_bpb_mmap_entry)))
+                if (!ensure_space(max_entries * sizeof(leyn_bpb_mmap_entry))) {
+                    FreePool(memMap);
+                    FreePool(bpbBuf);
                     return false;
+                }
 
                 auto* mmap_out = reinterpret_cast<leyn_bpb_mmap_entry*>(mm_ptr);
 
@@ -429,8 +443,11 @@ namespace ribon::loaderPkg {
                     offset += descSize;
                 }
 
-                if (section_count >= MAX_SECTIONS)
+                if (section_count >= MAX_SECTIONS) {
+                    FreePool(memMap);
+                    FreePool(bpbBuf);
                     return false;
+                }
 
                 leyn_bpb_section& sec = section_array[section_count++];
                 sec.type      = LEYN_BPB_SEC_MEMORY_MAP;
@@ -442,21 +459,18 @@ namespace ribon::loaderPkg {
                 sec.payload_offset    = static_cast<uint64_t>(mm_ptr - bpb_start);
                 sec.payload_size      = static_cast<uint64_t>(count * sizeof(leyn_bpb_mmap_entry));
                 sec.uncompressed_size = sec.payload_size;
-                sec.aux_data          = static_cast<uint64_t>(count); // 엔트리 수 (편의용)
+                sec.aux_data          = static_cast<uint64_t>(count);
 
                 payload_cursor = mm_ptr + count * sizeof(leyn_bpb_mmap_entry);
             }
 
-            // ------------------------------------------------------------------
-            //  3-3) EFI_MEMORY_MAP 섹션 (원본)
-            //       payload = [ leyn_bpb_efi_mmap_meta ][ EFI_MEMORY_DESCRIPTOR[]... ]
-            // ------------------------------------------------------------------
+            // ---------------- EFI_MEMORY_MAP (원본 + meta) ----------------
             {
                 leyn_bpb_efi_mmap_meta meta{};
                 meta.descriptor_size    = static_cast<uint32_t>(descSize);
                 meta.descriptor_version = descVer;
 
-                UINTN meta_size = sizeof(meta);
+                UINTN meta_size  = sizeof(meta);
                 UINTN total_size = meta_size + mapSize;
 
                 UINTN aligned_off = align_up(
@@ -466,15 +480,20 @@ namespace ribon::loaderPkg {
                 UINT8* mm_ptr = bpb_start + aligned_off;
                 payload_cursor = mm_ptr;
 
-                if (!ensure_space(total_size))
+                if (!ensure_space(total_size)) {
+                    FreePool(memMap);
+                    FreePool(bpbBuf);
                     return false;
+                }
 
-                // meta + raw map 복사
-                ribon::mem::Memcpy(mm_ptr, &meta, meta_size);
-                ribon::mem::Memcpy(mm_ptr + meta_size, memMap, mapSize);
+                Memcpy(mm_ptr, &meta, meta_size);
+                Memcpy(mm_ptr + meta_size, memMap, mapSize);
 
-                if (section_count >= MAX_SECTIONS)
+                if (section_count >= MAX_SECTIONS) {
+                    FreePool(memMap);
+                    FreePool(bpbBuf);
                     return false;
+                }
 
                 leyn_bpb_section& sec = section_array[section_count++];
                 sec.type      = LEYN_BPB_SEC_EFI_MEMORY_MAP;
@@ -487,14 +506,12 @@ namespace ribon::loaderPkg {
                 sec.payload_offset    = static_cast<uint64_t>(mm_ptr - bpb_start);
                 sec.payload_size      = static_cast<uint64_t>(total_size);
                 sec.uncompressed_size = sec.payload_size;
-                sec.aux_data          = static_cast<uint64_t>(mapSize); // raw map 크기
+                sec.aux_data          = static_cast<uint64_t>(mapSize);
 
                 payload_cursor = mm_ptr + total_size;
             }
 
-            // ------------------------------------------------------------------
-            //  3-4) EFI_SYSTEM_TABLE 포인터 섹션
-            // ------------------------------------------------------------------
+            // ---------------- EFI_SYSTEM_TABLE 포인터 ----------------
             {
                 leyn_bpb_efi_system_table_ptr st_ptr{};
                 st_ptr.system_table_phys =
@@ -509,15 +526,15 @@ namespace ribon::loaderPkg {
                         &st_ptr,
                         sizeof(st_ptr)))
                 {
+                    FreePool(memMap);
+                    FreePool(bpbBuf);
                     return false;
                 }
 
                 header->flags |= LEYN_BPB_FLAG_HAS_EFI_SYSTEM_TABLE;
             }
 
-            // ------------------------------------------------------------------
-            //  3-5) EFI_IMAGE_HANDLE 섹션
-            // ------------------------------------------------------------------
+            // ---------------- EFI_IMAGE_HANDLE 포인터 ----------------
             {
                 leyn_bpb_efi_image_handle_ptr ih_ptr{};
                 ih_ptr.image_handle =
@@ -532,15 +549,15 @@ namespace ribon::loaderPkg {
                         &ih_ptr,
                         sizeof(ih_ptr)))
                 {
+                    FreePool(memMap);
+                    FreePool(bpbBuf);
                     return false;
                 }
 
                 header->flags |= LEYN_BPB_FLAG_HAS_EFI_IMAGE_HANDLE;
             }
 
-            // ------------------------------------------------------------------
-            //  3-6) FRAMEBUFFER_INFO + UEFI_GOP_MODE 섹션 (GOP가 있을 경우)
-            // ------------------------------------------------------------------
+            // ---------------- FRAMEBUFFER_INFO + UEFI_GOP_MODE ----------------
             if (gop && gop->Mode && gop->Mode->Info) {
                 EFI_GRAPHICS_OUTPUT_MODE_INFORMATION* info = gop->Mode->Info;
                 EFI_GRAPHICS_PIXEL_FORMAT pfmt = info->PixelFormat;
@@ -551,7 +568,6 @@ namespace ribon::loaderPkg {
                 fb.framebuffer_width  = info->HorizontalResolution;
                 fb.framebuffer_height = info->VerticalResolution;
 
-                // 기본 32bpp 가정 (대부분 그렇게 동작)
                 fb.framebuffer_bpp   = 32;
                 fb.framebuffer_pitch =
                     info->PixelsPerScanLine * (fb.framebuffer_bpp / 8);
@@ -559,7 +575,6 @@ namespace ribon::loaderPkg {
                 fb.framebuffer_type = LEYN_BPB_FB_TYPE_RGB;
                 fb.backend          = LEYN_BPB_FB_BACKEND_UEFI_GOP;
 
-                // RGB 마스크 설정
                 auto set_rgb = [&](uint8_t rp, uint8_t rl,
                                    uint8_t gp, uint8_t gl,
                                    uint8_t bp, uint8_t bl) {
@@ -574,13 +589,10 @@ namespace ribon::loaderPkg {
                 };
 
                 if (pfmt == PixelRedGreenBlueReserved8BitPerColor) {
-                    // R:G:B:Res (little-endian 기준)
                     set_rgb(16, 8, 8, 8, 0, 8);
                 } else if (pfmt == PixelBlueGreenRedReserved8BitPerColor) {
-                    // B:G:R:Res
                     set_rgb(0, 8, 8, 8, 16, 8);
                 } else if (pfmt == PixelBitMask) {
-                    // BitMask 모드는 Info->PixelInformation 마스크를 사용
                     auto calc_pos_len = [](uint32_t mask, uint8_t& pos, uint8_t& len) {
                         if (!mask) { pos = 0; len = 0; return; }
                         uint8_t p = 0;
@@ -599,7 +611,6 @@ namespace ribon::loaderPkg {
                     calc_pos_len(info->PixelInformation.BlueMask,  bp, bl);
                     set_rgb(rp, rl, gp, gl, bp, bl);
                 } else {
-                    // 알 수 없는 포맷이면 그냥 RGB 8:8:8 기본값
                     set_rgb(16, 8, 8, 8, 0, 8);
                 }
 
@@ -614,12 +625,13 @@ namespace ribon::loaderPkg {
                         &fb,
                         sizeof(fb)))
                 {
+                    FreePool(memMap);
+                    FreePool(bpbBuf);
                     return false;
                 }
 
                 header->flags |= LEYN_BPB_FLAG_HAS_FB_INFO;
 
-                // UEFI_GOP_MODE 섹션 (추가 정보)
                 leyn_bpb_uefi_gop_mode gop_mode{};
                 gop_mode.version              = info->Version;
                 gop_mode.horizontal_resolution= info->HorizontalResolution;
@@ -646,9 +658,7 @@ namespace ribon::loaderPkg {
                 );
             }
 
-            // ------------------------------------------------------------------
-            //  3-7) BOOTLOADER_NAME / BOOT_CMDLINE 섹션 (문자열)
-            // ------------------------------------------------------------------
+            // ---------------- BOOTLOADER_NAME / BOOT_CMDLINE ----------------
             {
                 const char name[] = "Ribon EFI Bootloader";
                 add_section_copy(
@@ -657,12 +667,12 @@ namespace ribon::loaderPkg {
                     LEYN_BPB_SEC_FLAG_RUNTIME,
                     1,
                     name,
-                    sizeof(name)  // null 포함
+                    sizeof(name)
                 );
             }
 
             {
-                const char cmdline[] = "leyn"; // 필요하면 나중에 실제 커맨드라인 사용
+                const char cmdline[] = "leyn";
                 add_section_copy(
                     LEYN_BPB_SEC_BOOT_CMDLINE,
                     LEYN_BPB_SEC_FLAG_OPTIONAL |
@@ -673,43 +683,51 @@ namespace ribon::loaderPkg {
                 );
             }
 
-            // TODO: 나중에 ACPI/SMBIOS/NETWORK/CONFIG_GRAPH 등도 여기서 추가 가능
-
-            // ------------------------------------------------------------------
-            //  BPB 헤더 마무리
-            // ------------------------------------------------------------------
+            // ---------------- BPB 헤더 마무리 ----------------
             UINTN used_size = static_cast<UINTN>(payload_cursor - bpb_start);
             header->section_count = section_count;
             header->total_size    = static_cast<uint32_t>(used_size);
 
-            // Leyn 커널에 넘길 전역 포인터 세팅
-            detail::g_leyn_bpb = header;
+            // 커널에 넘길 BPB 포인터 보관
+            bpb_header_ = header;
 
-            // ------------------------------------------------------------------
-            //  마지막으로 ExitBootServices
-            // ------------------------------------------------------------------
+            // 여기까지는 BootServices를 사용했으므로 실패 시에는 FreePool 가능
+            // 하지만 이제 ExitBootServices를 호출한 뒤로는 더 이상 FreePool을 호출하지 않는다.
+
             status = bs->ExitBootServices(ih, mapKey);
             if (EFI_ERROR(status)) {
-                // 실패 시에는 더 이상 여기서 회복 시도하지 않고 false 반환
-                // (필요하면 재시도 로직 추가 가능)
+                // 실패했다면, 아직 BootServices가 살아있으므로 정리 가능
+                bpb_header_ = nullptr;
+                FreePool(memMap);
+                FreePool(bpbBuf);
                 return false;
             }
 
-            // 성공
+            // 성공: 여기서부터 BootServices는 죽었고,
+            // memMap / bpbBuf(EfiLoaderData)는 OS 몫
             return true;
         }
 
-        /// @brief BootLogic이 사용할 엔트리 주소 반환 (트램폴린)
+        /// @brief BootLogic/EfiMain이 사용할 엔트리 주소 (실제 커널 엔트리)
         constexpr UINT64 entryPoint() const {
             return entry_;
         }
 
+        /// @brief 커널에 넘길 BPB 헤더 포인터
+        const leyn_bpb_header* bpb() const {
+            return bpb_header_;
+        }
+
     private:
+        using LeynKernelEntryFn = void (*)(const leyn_bpb_header*);
+
         UINT64 entry_ = 0;
 
-        // 커널 로드 베이스/끝 주소 (필요시 IMAGE_LOAD_BASE 등에 쓸 수 있도록 저장)
         UINT64 kernel_phys_start_ = 0;
         UINT64 kernel_phys_end_   = 0;
+
+        LeynKernelEntryFn  kernel_entry_ = nullptr;
+        leyn_bpb_header*   bpb_header_   = nullptr;
     };
 
 } // namespace ribon::loaderPkg
