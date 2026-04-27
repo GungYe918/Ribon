@@ -17,11 +17,12 @@ ribon::boot::BootArch CurrentBootArch() {
 
 [[noreturn]] void JumpToKernel(UINT64 entry, const void* arg) {
     asm volatile(
+        "cld\n"
         "mov %0, %%rdi\n"
-        "jmp *%1\n"
+        "jmpq *%1\n"
         :
         : "r"(arg), "r"(entry)
-        : "rdi");
+        : "rdi", "memory");
 
     __builtin_unreachable();
 }

@@ -213,17 +213,32 @@ bool BuildCoreLbpb(
     ++section_count;
     cursor = efi_map_section_offset + efi_map_payload_size;
 
-    if (context.gop && context.gop->Mode && context.gop->Mode->Info) {
+    if (context.gop && context.gop->Mode && context.boot_services) {
+        EFI_GRAPHICS_OUTPUT_MODE_INFORMATION* mode_info = nullptr;
+        UINTN mode_info_size = 0;
+        EFI_STATUS mode_status = context.gop->QueryMode(
+            context.gop,
+            context.gop->Mode->Mode,
+            &mode_info_size,
+            &mode_info
+        );
+
+        const auto* gop_mode = context.gop->Mode;
+        const auto* info = (!EFI_ERROR(mode_status) && mode_info && mode_info_size >= sizeof(*mode_info))
+            ? mode_info
+            : gop_mode->Info;
+
+        if (info) {
         leyn_bpb_fb_info fb{};
-        fb.framebuffer_addr = context.gop->Mode->FrameBufferBase;
-        fb.framebuffer_pitch = context.gop->Mode->Info->PixelsPerScanLine * 4;
-        fb.framebuffer_width = context.gop->Mode->Info->HorizontalResolution;
-        fb.framebuffer_height = context.gop->Mode->Info->VerticalResolution;
+        fb.framebuffer_addr = gop_mode->FrameBufferBase;
+        fb.framebuffer_pitch = info->PixelsPerScanLine * 4;
+        fb.framebuffer_width = info->HorizontalResolution;
+        fb.framebuffer_height = info->VerticalResolution;
         fb.framebuffer_bpp = 32;
         fb.framebuffer_type = LEYN_BPB_FB_TYPE_RGB;
         fb.backend = LEYN_BPB_FB_BACKEND_UEFI_GOP;
 
-        switch (context.gop->Mode->Info->PixelFormat) {
+        switch (info->PixelFormat) {
         case PixelBlueGreenRedReserved8BitPerColor:
             fb.color.rgb.red_position = 16;
             fb.color.rgb.red_mask_size = 8;
@@ -257,9 +272,17 @@ bool BuildCoreLbpb(
                 &fb,
                 sizeof(fb),
                 0)) {
+            if (mode_info) {
+                ribon::mem::FreePool(mode_info);
+            }
             return false;
         }
         has_fb_info = true;
+        }
+
+        if (mode_info) {
+            ribon::mem::FreePool(mode_info);
+        }
     }
 
     if (context.system_table && context.system_table->ConfigurationTable) {
