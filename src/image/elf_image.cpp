@@ -1,5 +1,6 @@
 #include <Ribon/image/ElfImage.hpp>
 
+#include <Ribon/arch/KernelJump.hpp>
 #include <Ribon/Elf.hpp>
 #include <Ribon/Memory.hpp>
 
@@ -40,8 +41,10 @@ bool LoadElfKernelImage(
 
     const auto* ph = reinterpret_cast<const Elf64_Phdr*>(base + eh->e_phoff);
 
-    UINT64 phys_min = ~UINT64(0);
-    UINT64 phys_max = 0;
+    const UINT64 page_size = ribon::arch::CurrentElfPageSize();
+    UINT64 load_min = ~UINT64(0);
+    UINT64 load_max = 0;
+    UINT64 actual_entry = 0;
 
     for (UINT16 i = 0; i < eh->e_phnum; ++i) {
         const Elf64_Phdr& p = ph[i];
@@ -58,7 +61,50 @@ bool LoadElfKernelImage(
             load_addr = p.p_paddr;
         }
 
-        UINT8* dst = reinterpret_cast<UINT8*>(static_cast<UINTN>(load_addr));
+        if (load_addr < load_min) {
+            load_min = load_addr;
+        }
+        if (load_addr + p.p_memsz > load_max) {
+            load_max = load_addr + p.p_memsz;
+        }
+
+        if (eh->e_entry >= p.p_vaddr && eh->e_entry < p.p_vaddr + p.p_memsz) {
+            actual_entry = load_addr + (eh->e_entry - p.p_vaddr);
+        }
+    }
+
+    if (load_max <= load_min) {
+        return false;
+    }
+
+    const UINT64 page_mask = page_size - 1;
+    const UINT64 alloc_base = load_min & ~page_mask;
+    const UINT64 alloc_end = (load_max + page_mask) & ~page_mask;
+    const UINTN alloc_size = static_cast<UINTN>(alloc_end - alloc_base);
+
+    void* load_buffer = nullptr;
+    EFI_STATUS alloc_status = ribon::mem::AllocatePool(EfiLoaderCode, alloc_size, &load_buffer);
+    if (EFI_ERROR(alloc_status) || !load_buffer) {
+        return false;
+    }
+
+    const UINT64 runtime_base = reinterpret_cast<UINT64>(load_buffer);
+    ribon::mem::Memset(load_buffer, 0, alloc_size);
+
+    for (UINT16 i = 0; i < eh->e_phnum; ++i) {
+        const Elf64_Phdr& p = ph[i];
+        if (p.p_type != PT_LOAD || p.p_memsz == 0) {
+            continue;
+        }
+
+        UINT64 load_addr = p.p_vaddr;
+        if (request.load_policy == ribon::boot::LoadAddressPolicy::UsePaddrWhenAvailable && p.p_paddr != 0) {
+            load_addr = p.p_paddr;
+        }
+
+        UINT8* dst = reinterpret_cast<UINT8*>(
+            static_cast<UINTN>(runtime_base + (load_addr - alloc_base))
+        );
         const UINT8* src = base + p.p_offset;
         const UINTN filesz = static_cast<UINTN>(p.p_filesz);
         const UINTN memsz = static_cast<UINTN>(p.p_memsz);
@@ -70,21 +116,12 @@ bool LoadElfKernelImage(
             ribon::mem::Memset(dst + filesz, 0, memsz - filesz);
         }
 
-        if (load_addr < phys_min) {
-            phys_min = load_addr;
-        }
-        if (load_addr + p.p_memsz > phys_max) {
-            phys_max = load_addr + p.p_memsz;
-        }
     }
 
-    if (phys_max <= phys_min) {
-        return false;
-    }
-
-    out.entry = eh->e_entry;
-    out.phys_start = phys_min;
-    out.phys_end = phys_max;
+    const UINT64 resolved_entry = actual_entry != 0 ? actual_entry : eh->e_entry;
+    out.entry = runtime_base + (resolved_entry - alloc_base);
+    out.phys_start = runtime_base;
+    out.phys_end = runtime_base + alloc_size;
     out.format = request.format;
     out.arch = request.arch;
     out.load_policy = request.load_policy;

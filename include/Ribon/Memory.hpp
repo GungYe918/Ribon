@@ -34,6 +34,25 @@ namespace ribon::mem {
         return bs->FreePool(buffer);
     }
 
+    inline EFI_STATUS AllocatePages(
+        EFI_ALLOCATE_TYPE type,
+        EFI_MEMORY_TYPE memoryType,
+        UINTN pages,
+        EFI_PHYSICAL_ADDRESS* memory
+    ) {
+        auto bs = ribon::getBS();
+        if (!bs) return EFI_UNSUPPORTED;
+
+        return bs->AllocatePages(type, memoryType, pages, memory);
+    }
+
+    inline EFI_STATUS FreePages(EFI_PHYSICAL_ADDRESS memory, UINTN pages) {
+        auto bs = ribon::getBS();
+        if (!bs) return EFI_UNSUPPORTED;
+
+        return bs->FreePages(memory, pages);
+    }
+
     inline EFI_STATUS AllocateZeroPool(
         EFI_MEMORY_TYPE type,
         UINTN           size,

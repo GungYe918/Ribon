@@ -5,6 +5,7 @@
 #include "LoaderBase.hpp"
 #include "Multiboot.hpp"
 
+#include <Ribon/arch/KernelJump.hpp>
 #include <Ribon/Elf.hpp>
 #include <Ribon/boot/Types.hpp>
 #include <Ribon/image/ElfImage.hpp>
@@ -44,19 +45,19 @@ public:
 
     bool loadImage(const void* file, UINTN size, ribon::boot::LoadedKernelImage& out) {
         const ribon::image::ElfLoadRequest request{
-            ribon::boot::BootArch::X86_64,
+            ribon::arch::CurrentBootArch(),
             ribon::boot::KernelFormat::Multiboot,
             ribon::boot::LoadAddressPolicy::UseVaddr,
-            EM_X86_64,
+            ribon::arch::CurrentElfMachine(),
         };
         return ribon::image::LoadElfKernelImage(file, size, request, out);
     }
 
-    constexpr ribon::boot::KernelProbeResult probeResult() const {
+    ribon::boot::KernelProbeResult probeResult() const {
         return {
             ribon::boot::KernelFormat::Multiboot,
             ribon::boot::HandoffKind::None,
-            ribon::boot::BootArch::X86_64,
+            ribon::arch::CurrentBootArch(),
         };
     }
 };

@@ -3,6 +3,7 @@
 
 #include "LoaderBase.hpp"
 
+#include <Ribon/arch/KernelJump.hpp>
 #include <Ribon/Elf.hpp>
 #include <Ribon/boot/Types.hpp>
 #include <Ribon/image/ElfImage.hpp>
@@ -19,24 +20,24 @@ public:
         }
 
         const auto* eh = reinterpret_cast<const Elf64_Ehdr*>(file);
-        return IS_ELF(*eh) && IS_ELF64(*eh) && eh->e_machine == EM_X86_64;
+        return IS_ELF(*eh) && IS_ELF64(*eh) && eh->e_machine == ribon::arch::CurrentElfMachine();
     }
 
     bool loadImage(const void* file, UINTN size, ribon::boot::LoadedKernelImage& out) {
         const ribon::image::ElfLoadRequest request{
-            ribon::boot::BootArch::X86_64,
+            ribon::arch::CurrentBootArch(),
             ribon::boot::KernelFormat::LBPB,
             ribon::boot::LoadAddressPolicy::UsePaddrWhenAvailable,
-            EM_X86_64,
+            ribon::arch::CurrentElfMachine(),
         };
         return ribon::image::LoadElfKernelImage(file, size, request, out);
     }
 
-    constexpr ribon::boot::KernelProbeResult probeResult() const {
+    ribon::boot::KernelProbeResult probeResult() const {
         return {
             ribon::boot::KernelFormat::LBPB,
             ribon::boot::HandoffKind::LBPBCore,
-            ribon::boot::BootArch::X86_64,
+            ribon::arch::CurrentBootArch(),
         };
     }
 };
