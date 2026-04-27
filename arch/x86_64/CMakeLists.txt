@@ -1,8 +1,5 @@
 add_library(ribon_arch STATIC
-    uefi/entrypoint.cpp
-    uefi/gdt.S
-    uefi/paging.S
-    uefi/switch_to_kernel.S
+    jump.cpp
 )
 
 target_include_directories(ribon_arch PRIVATE

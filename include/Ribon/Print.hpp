@@ -139,7 +139,7 @@ void Print(const CHAR16* wfmt, ...)
     va_start(args, wfmt);
 
     if constexpr (is_same<Mode, Tags::DEBUG>::value) {
-        ribon::str::Utf16String prefix(L"[DBG] ");
+        ribon::str::Utf16String prefix(u"[DBG] ");
         auto formatted = detail::FormatToUtf16(utf8_fmt.c_str(), args);
         prefix.append(formatted);
         Utf16Print(prefix.c_str());

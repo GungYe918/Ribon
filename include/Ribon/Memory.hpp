@@ -4,6 +4,7 @@
 
 #include <Ribon/EfiContext.hpp>
 #include <Uefi.h>
+#include <stddef.h>
 
 // ------------------------------------------
 // Internal “allocation tracing” state

@@ -116,6 +116,7 @@ extern "C" EFI_GUID gEfiRngProtocolGuid                 = EFI_RNG_PROTOCOL_GUID;
 //  시스템 테이블 / ACPI / SMBIOS
 // --------------------
 extern "C" EFI_GUID gEfiAcpiTableGuid                   = EFI_ACPI_TABLE_GUID;
+extern "C" EFI_GUID gEfiAcpi10TableGuid                 = ACPI_10_TABLE_GUID;
 extern "C" EFI_GUID gEfiAcpi20TableGuid                 = EFI_ACPI_20_TABLE_GUID;
 
 // --------------------

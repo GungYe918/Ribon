@@ -64,6 +64,26 @@ namespace ribon::str {
         buf[utf_len] = 0;
     }
 
+    /** @brief char16_t -> UTF-16 복사 생성자 */
+    Utf16String::Utf16String(const char16_t* utf16) : buf(nullptr), len(0) {
+        if (!utf16) {
+            allocate(1);
+            if (buf) buf[0] = 0;
+            return;
+        }
+
+        UINTN utf_len = 0;
+        while (utf16[utf_len] != 0) utf_len++;
+
+        allocate(utf_len + 1);
+        if (!buf) return;
+
+        for (UINTN i = 0; i < utf_len; i++)
+            buf[i] = static_cast<CHAR16>(utf16[i]);
+
+        buf[utf_len] = 0;
+    }
+
     /** @brief 이동 생성자 */
     Utf16String::Utf16String(Utf16String&& other) noexcept {
         buf = other.buf;

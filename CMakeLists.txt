@@ -1,29 +1,31 @@
-# root cmake
 cmake_minimum_required(VERSION 3.20)
 
 project(Ribon LANGUAGES C CXX ASM)
 
-# ----------------------------------------------------
-# 0) Architecture selection
-# ----------------------------------------------------
+set(RIBON_SUPPORTED_ARCHES x86_64 aarch64)
 if(NOT DEFINED ARCH)
     set(ARCH x86_64)
 endif()
 
+list(FIND RIBON_SUPPORTED_ARCHES "${ARCH}" RIBON_ARCH_INDEX)
+if(RIBON_ARCH_INDEX EQUAL -1)
+    message(FATAL_ERROR "Unsupported ARCH='${ARCH}'. Supported values: ${RIBON_SUPPORTED_ARCHES}")
+endif()
+
+if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/arch/${ARCH}/CMakeLists.txt")
+    message(FATAL_ERROR "Missing architecture module for ARCH='${ARCH}'")
+endif()
+
 message(STATUS "Target Architecture: ${ARCH}")
 
-# toolchain 파일은 cmake 호출 시 -DCMAKE_TOOLCHAIN_FILE 로 지정해야 함.
-
-
-# ----------------------------------------------------
-# 1) Build Options
-# ----------------------------------------------------
 option(BOOTLOADER "Build EFI Bootloader" ON)
-message(STATUS "BOOTLOADER mode: ${BOOTLOADER}")
+option(RIBON_BUILD_GUI "Build GUI EFI bootloader target" ON)
+option(RIBON_BUILD_AUTOBOOT "Build CLI autoboot EFI target" ON)
 
-# ----------------------------------------------------
-# 2) Common compile options
-# ----------------------------------------------------
+message(STATUS "BOOTLOADER mode: ${BOOTLOADER}")
+message(STATUS "GUI target: ${RIBON_BUILD_GUI}")
+message(STATUS "Autoboot target: ${RIBON_BUILD_AUTOBOOT}")
+
 set(CMAKE_C_STANDARD 17)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_C_EXTENSIONS OFF)
@@ -33,10 +35,15 @@ add_compile_options(-fshort-wchar)
 add_compile_options(-fno-stack-check)
 add_definitions(-DUEFI)
 
+if(ARCH STREQUAL "x86_64")
+    add_compile_definitions(RIBON_ARCH_X86_64=1)
+elseif(ARCH STREQUAL "aarch64")
+    add_compile_definitions(RIBON_ARCH_AARCH64=1)
+endif()
+
 include_directories(
     ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/include/Ribon
-
     ${CMAKE_SOURCE_DIR}/include/uefi
     ${CMAKE_SOURCE_DIR}/include/uefi/X64
     ${CMAKE_SOURCE_DIR}/include/uefi/Ia32
@@ -46,17 +53,10 @@ include_directories(
     ${CMAKE_SOURCE_DIR}/include/uefi/RiscV64
 )
 
-
-# ----------------------------------------------------
-# 3) Subdirectories: Core Libraries
-# ----------------------------------------------------
+add_subdirectory(loaderPkg)
 add_subdirectory(src)
 add_subdirectory(arch/${ARCH})
-add_subdirectory(loaderPkg)
 
-# ----------------------------------------------------
-# 4) Bootloader Mode (Delegated to bootldr/)
-# ----------------------------------------------------
 if(BOOTLOADER)
     message(STATUS "Including EFI Bootloader...")
     add_subdirectory(bootldr)
