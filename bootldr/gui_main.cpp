@@ -1,5 +1,6 @@
 #include <Ribon/Common.hpp>
 #include <Ribon/Console.hpp>
+#include <Ribon/File.hpp>
 #include <Ribon/FrameBuffer.hpp>
 #include <Ribon/InputSystem.hpp>
 #include <Ribon/Print.hpp>
@@ -20,6 +21,7 @@ void GuiStatusReporter(const char* message) {
 
 void CliStatusReporter(const char* message) {
     ribon::IO::Print<ribon::IO::Tags::DEBUG>(message);
+    ribon::IO::Print<ribon::IO::Tags::UTF16>("\r\n");
 }
 
 void BootKernelCallback(void*) {
@@ -30,6 +32,17 @@ void SettingsCallback(void*) {
     ribon::ui::showMessageLabel(100, 520, "Settings pressed!");
 }
 
+bool TestAutobootRequested() {
+    ribon::str::Utf16String marker_path("\\ribon-test-autoboot");
+    EFI_FILE_PROTOCOL* marker = ribon::IO::openFile(marker_path.c_str());
+    if (!marker) {
+        return false;
+    }
+
+    marker->Close(marker);
+    return true;
+}
+
 } // namespace
 
 extern "C"
@@ -37,6 +50,18 @@ EFI_STATUS
 EFIAPI
 EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable) {
     ribon::initialize(ImageHandle, SystemTable);
+
+    ribon::console::Console console;
+    ribon::console::setConsole(&console);
+    console.SetMode(ribon::console::TextMode::SimpleText);
+
+    if (TestAutobootRequested()) {
+        ribon::IO::Print<ribon::IO::Tags::DEBUG>(
+            "GUI: test autoboot requested; entering autoboot.\r\n");
+        ribon::boot::ExecuteBootFlow(
+            ribon::policy::DefaultAutoBootPolicy(), CliStatusReporter);
+        return EFI_SUCCESS;
+    }
 
     /*
      * Graceful degradation: if the firmware did not give us a Graphics
@@ -60,8 +85,6 @@ EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable) {
     ccfg.uiEnabled = true;
     ccfg.perfMode = true;
 
-    ribon::console::Console console;
-    ribon::console::setConsole(&console);
     console.SetMode(ribon::console::TextMode::FBFont);
 
     if (!ribon::gfx::initScreen(1200, 800)) {
