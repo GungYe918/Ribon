@@ -82,14 +82,31 @@ bool LoadElfKernelImage(
     const UINT64 alloc_end = (load_max + page_mask) & ~page_mask;
     const UINTN alloc_size = static_cast<UINTN>(alloc_end - alloc_base);
 
-    void* load_buffer = nullptr;
-    EFI_STATUS alloc_status = ribon::mem::AllocatePool(EfiLoaderCode, alloc_size, &load_buffer);
-    if (EFI_ERROR(alloc_status) || !load_buffer) {
+    /*
+     * AArch64 (and many ELF kernels in general) generate ADRP+ADD/LDR
+     * sequences for every global reference. ADRP encodes a PC-relative
+     * page offset and assumes the binary is loaded at a page-aligned
+     * base; AllocatePool only guarantees 8-byte alignment, which would
+     * shift every symbol by `base & 0xFFF` at runtime. AllocatePages
+     * gives us a 4 KiB-aligned buffer and keeps PIC references valid.
+     */
+    const UINTN page_bytes = static_cast<UINTN>(page_size);
+    const UINTN alloc_pages =
+        (alloc_size + page_bytes - 1) / page_bytes;
+    EFI_PHYSICAL_ADDRESS phys_buffer = 0;
+    EFI_STATUS alloc_status = ribon::mem::AllocatePages(
+        AllocateAnyPages,
+        EfiLoaderCode,
+        alloc_pages,
+        &phys_buffer);
+    if (EFI_ERROR(alloc_status) || phys_buffer == 0) {
         return false;
     }
+    void* load_buffer = reinterpret_cast<void*>(static_cast<UINTN>(phys_buffer));
 
     const UINT64 runtime_base = reinterpret_cast<UINT64>(load_buffer);
-    ribon::mem::Memset(load_buffer, 0, alloc_size);
+    const UINTN backing_bytes = alloc_pages * page_bytes;
+    ribon::mem::Memset(load_buffer, 0, backing_bytes);
 
     for (UINT16 i = 0; i < eh->e_phnum; ++i) {
         const Elf64_Phdr& p = ph[i];

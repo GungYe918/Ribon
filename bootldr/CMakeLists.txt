@@ -27,8 +27,13 @@ function(ribon_apply_efi_link target)
         -Wl,/opt:ref
     )
 
+    # The build now lives entirely under the CMake binary dir; this
+    # keeps stand/ribon/esp/ from accumulating stale EFI binaries
+    # across configurations (x86_64 ↔ aarch64) and across runs. The
+    # outer kairon Makefile copies from ${CMAKE_BINARY_DIR}/esp/...
+    # into the staged ESP tree.
     set_target_properties(${target} PROPERTIES
-        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/esp/EFI/BOOT
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/esp/EFI/BOOT
         SUFFIX ".EFI"
     )
 endfunction()
@@ -38,6 +43,9 @@ if(RIBON_BUILD_GUI)
         gui_main.cpp
     )
 
+    # ribon_policy_autoboot and ribon_cli_stubs are linked alongside
+    # the GUI policy so gui_main can fall back to the autoboot flow
+    # when the firmware does not give us a Graphics Output Protocol.
     target_link_libraries(RibonGUI
         ribon_core
         ribon_guids
@@ -46,6 +54,8 @@ if(RIBON_BUILD_GUI)
         ribon_handoff_lbpb
         ribon_boot_core
         ribon_policy_gui
+        ribon_policy_autoboot
+        ribon_cli_stubs
         ribon_io
         ribon_console
         ribon_gfx

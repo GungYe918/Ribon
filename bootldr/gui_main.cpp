@@ -8,12 +8,17 @@
 
 #include <Ribon/EfiContext.hpp>
 #include <Ribon/boot/BootCore.hpp>
+#include <Ribon/policy/AutoBootPolicy.hpp>
 #include <Ribon/policy/GuiBootPolicy.hpp>
 
 namespace {
 
 void GuiStatusReporter(const char* message) {
     ribon::ui::showMessageLabel(100, 540, message);
+    ribon::IO::Print<ribon::IO::Tags::DEBUG>(message);
+}
+
+void CliStatusReporter(const char* message) {
     ribon::IO::Print<ribon::IO::Tags::DEBUG>(message);
 }
 
@@ -33,6 +38,23 @@ EFIAPI
 EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable) {
     ribon::initialize(ImageHandle, SystemTable);
 
+    /*
+     * Graceful degradation: if the firmware did not give us a Graphics
+     * Output Protocol (this is the common case on QEMU virt + AAVMF
+     * builds without a virtio-gpu DXE driver bound), we cannot run the
+     * GUI at all -- every drawing call would dereference a NULL gop
+     * and abort with FAR=0x8 (gop->SetMode at offset 0x8 in the
+     * EFI_GRAPHICS_OUTPUT_PROTOCOL vtable). Fall back to the autoboot
+     * flow so the bootloader still makes forward progress.
+     */
+    if (ribon::getGop() == nullptr) {
+        ribon::IO::Print<ribon::IO::Tags::DEBUG>(
+            "GUI: no GOP available; falling back to autoboot.\r\n");
+        ribon::boot::ExecuteBootFlow(
+            ribon::policy::DefaultAutoBootPolicy(), CliStatusReporter);
+        return EFI_SUCCESS;
+    }
+
     ribon::CommonConfig& ccfg = ribon::GetCommonConfig();
     ccfg.renderMode = ribon::RenderMode::DoubleBuffer;
     ccfg.uiEnabled = true;
@@ -42,7 +64,13 @@ EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable) {
     ribon::console::setConsole(&console);
     console.SetMode(ribon::console::TextMode::FBFont);
 
-    ribon::gfx::initScreen(1200, 800);
+    if (!ribon::gfx::initScreen(1200, 800)) {
+        ribon::IO::Print<ribon::IO::Tags::DEBUG>(
+            "GUI: initScreen failed; falling back to autoboot.\r\n");
+        ribon::boot::ExecuteBootFlow(
+            ribon::policy::DefaultAutoBootPolicy(), CliStatusReporter);
+        return EFI_SUCCESS;
+    }
     ribon::gfx::clear(160, 165, 255, 255);
 
     ribon::IO::Print<ribon::IO::Tags::UTF16>("Ribon GUI Bootloader Starting...\r\n");
