@@ -97,7 +97,9 @@ namespace ribon::gfx {
         }
 
         // 먼저 기존 fb 초기화
-        ribon::fb::initFrameBuffer();
+        if (!ribon::fb::initFrameBuffer()) {
+            return false;
+        }
 
         // 목표 해상도 찾기
         INT32 mode = detail::findMode(desiredWidth, desiredHeight);
@@ -116,8 +118,13 @@ namespace ribon::gfx {
         }
 
         // 다시 FrameBuffer 초기화
-        ribon::fb::initFrameBuffer();
+        if (!ribon::fb::initFrameBuffer()) {
+            return false;
+        }
         const auto fb = ribon::fb::getFramebuffer();
+        if (!fb) {
+            return false;
+        }
 
         gScreen.width             = fb->width;
         gScreen.height            = fb->height;
