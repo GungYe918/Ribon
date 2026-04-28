@@ -221,7 +221,7 @@ enum ElfSectionType : UINT32 {
 
 /* 현재 플랫폼이 지원하는 아키텍처인지 */
 #define ELF_MACHINE_SUPPORTED(m) \
-    ((m) == EM_X86_64 || (m) == EM_386)
+    ((m) == EM_X86_64 || (m) == EM_386 || (m) == EM_AARCH64)
 
 #define ELF_IS_SUPPORTED_MACHINE(ehdr) \
     ELF_MACHINE_SUPPORTED((ehdr).e_machine)

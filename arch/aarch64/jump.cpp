@@ -20,6 +20,10 @@ ribon::boot::BootArch CurrentBootArch() {
     register UINT64 x16 asm("x16") = entry;
     asm volatile(
         "msr daifset, #0xf\n"
+        "dsb sy\n"
+        "ic ialluis\n"
+        "dsb sy\n"
+        "isb\n"
         "br x16\n"
         :
         : "r"(x0), "r"(x16)
