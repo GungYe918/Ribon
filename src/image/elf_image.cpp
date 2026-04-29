@@ -93,9 +93,19 @@ bool LoadElfKernelImage(
     const UINTN page_bytes = static_cast<UINTN>(page_size);
     const UINTN alloc_pages =
         (alloc_size + page_bytes - 1) / page_bytes;
+    /*
+     * AMD64 커널은 아직 relocation/MMU 단계가 없으므로 링커가 정한
+     * 물리 주소에 그대로 올린다. AArch64는 기존처럼 page-aligned
+     * 임의 loader 영역에 올려도 PC-relative 코드가 정상 동작한다.
+     */
+    EFI_ALLOCATE_TYPE alloc_type = AllocateAnyPages;
     EFI_PHYSICAL_ADDRESS phys_buffer = 0;
+    if (request.arch == ribon::boot::BootArch::X86_64) {
+        alloc_type = AllocateAddress;
+        phys_buffer = alloc_base;
+    }
     EFI_STATUS alloc_status = ribon::mem::AllocatePages(
-        AllocateAnyPages,
+        alloc_type,
         EfiLoaderCode,
         alloc_pages,
         &phys_buffer);
