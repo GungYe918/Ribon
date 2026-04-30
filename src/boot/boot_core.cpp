@@ -41,6 +41,63 @@ BootLogic::LoaderOps MakeOps() {
 
 BootLogic::LoaderSlot g_loader_slots[BootLogic::kMaxLoaders];
 
+constexpr EFI_GUID kEfiDeviceTreeTableGuid = {
+    0xb1b621d5,
+    0xf19c,
+    0x41a5,
+    {0x83, 0x0b, 0xd9, 0x15, 0x2c, 0x69, 0xaa, 0xe0}
+};
+
+bool GuidEquals(const EFI_GUID& lhs, const EFI_GUID& rhs) {
+    return lhs.Data1 == rhs.Data1 &&
+        lhs.Data2 == rhs.Data2 &&
+        lhs.Data3 == rhs.Data3 &&
+        lhs.Data4[0] == rhs.Data4[0] &&
+        lhs.Data4[1] == rhs.Data4[1] &&
+        lhs.Data4[2] == rhs.Data4[2] &&
+        lhs.Data4[3] == rhs.Data4[3] &&
+        lhs.Data4[4] == rhs.Data4[4] &&
+        lhs.Data4[5] == rhs.Data4[5] &&
+        lhs.Data4[6] == rhs.Data4[6] &&
+        lhs.Data4[7] == rhs.Data4[7];
+}
+
+UINT32 ReadBe32(const void* ptr) {
+    const auto* bytes = static_cast<const UINT8*>(ptr);
+    return ((UINT32)bytes[0] << 24) |
+        ((UINT32)bytes[1] << 16) |
+        ((UINT32)bytes[2] << 8) |
+        (UINT32)bytes[3];
+}
+
+bool LooksLikeDtb(const void* data, UINTN size) {
+    if (!data || size < 40) {
+        return false;
+    }
+    const UINT32 magic = ReadBe32(data);
+    const UINT32 total_size = ReadBe32(static_cast<const UINT8*>(data) + 4);
+    return magic == 0xd00dfeedu && total_size >= 40u && total_size <= size;
+}
+
+const void* FindFirmwareDtb(const ribon::platform::BootContext& context, UINTN& size) {
+    size = 0;
+    if (!context.system_table || !context.system_table->ConfigurationTable) {
+        return nullptr;
+    }
+    for (UINTN i = 0; i < context.system_table->NumberOfTableEntries; ++i) {
+        const EFI_CONFIGURATION_TABLE& table = context.system_table->ConfigurationTable[i];
+        if (!GuidEquals(table.VendorGuid, kEfiDeviceTreeTableGuid) || !table.VendorTable) {
+            continue;
+        }
+        const UINT32 total_size = ReadBe32(static_cast<const UINT8*>(table.VendorTable) + 4);
+        if (LooksLikeDtb(table.VendorTable, total_size)) {
+            size = total_size;
+            return table.VendorTable;
+        }
+    }
+    return nullptr;
+}
+
 } // namespace
 
 BootLogic::BootLogic()
@@ -118,6 +175,37 @@ bool ExecuteBootFlow(const BootPolicyConfig& config, StatusReporter reporter) {
         return false;
     }
 
+    const ribon::platform::BootContext boot_context = ribon::platform::CaptureBootContext();
+    ribon::boot::LoadedFileBuffer dtb_file{};
+    const void* dtb_data = nullptr;
+    UINTN dtb_size = 0;
+#if !defined(KAIRON_RIBON_ACCEPT_DTB)
+#define KAIRON_RIBON_ACCEPT_DTB 0
+#endif
+#if !defined(KAIRON_RIBON_REQUIRE_DTB)
+#define KAIRON_RIBON_REQUIRE_DTB 0
+#endif
+    const bool accept_dtb = config.accept_dtb && (KAIRON_RIBON_ACCEPT_DTB != 0);
+    const bool require_dtb = config.require_dtb || (KAIRON_RIBON_REQUIRE_DTB != 0);
+    if (accept_dtb) {
+        dtb_data = FindFirmwareDtb(boot_context, dtb_size);
+        if (!dtb_data && config.dtb_path &&
+            ribon::platform::LoadFileToPool(config.dtb_path, dtb_file)) {
+            if (LooksLikeDtb(dtb_file.data, dtb_file.size)) {
+                dtb_data = dtb_file.data;
+                dtb_size = dtb_file.size;
+            } else {
+                ribon::platform::ReleaseLoadedFile(dtb_file);
+            }
+        }
+    }
+    if (require_dtb && (!dtb_data || dtb_size == 0)) {
+        ribon::platform::ReleaseLoadedFile(dtb_file);
+        ribon::platform::ReleaseLoadedFile(kernel_file);
+        report("Selected profile requires a DTB, but none was found.");
+        return false;
+    }
+
     static ribon::loaderPkg::LBPBLoader lbpb_loader;
     static ribon::loaderPkg::MultibootLoader multiboot_loader;
     static ribon::loaderPkg::FiascoLoader fiasco_loader;
@@ -130,6 +218,7 @@ bool ExecuteBootFlow(const BootPolicyConfig& config, StatusReporter reporter) {
 
     BootArtifact artifact{};
     if (!logic.prepareBootArtifact(artifact)) {
+        ribon::platform::ReleaseLoadedFile(dtb_file);
         ribon::platform::ReleaseLoadedFile(kernel_file);
         report("No supported kernel loader matched.");
         return false;
@@ -137,6 +226,7 @@ bool ExecuteBootFlow(const BootPolicyConfig& config, StatusReporter reporter) {
 
     ribon::platform::MemoryMapSnapshot snapshot{};
     if (!ribon::platform::AllocateMemoryMapSnapshot(snapshot)) {
+        ribon::platform::ReleaseLoadedFile(dtb_file);
         ribon::platform::ReleaseLoadedFile(kernel_file);
         report("Failed to allocate memory map buffer.");
         return false;
@@ -144,10 +234,16 @@ bool ExecuteBootFlow(const BootPolicyConfig& config, StatusReporter reporter) {
 
     void* handoff_buffer = nullptr;
     if (artifact.handoff.kind == HandoffKind::LBPBCore) {
-        const ribon::handoff::LbpbBuildConfig lbpb_config{config.boot_cmdline, true};
+        const ribon::handoff::LbpbBuildConfig lbpb_config{
+            config.boot_cmdline,
+            true,
+            dtb_data,
+            dtb_size
+        };
         const UINTN handoff_size = ribon::handoff::EstimateCoreLbpbSize(snapshot, lbpb_config);
         if (EFI_ERROR(ribon::mem::AllocatePool(EfiLoaderData, handoff_size, &handoff_buffer)) || !handoff_buffer) {
             ribon::platform::ReleaseMemoryMapSnapshot(snapshot);
+            ribon::platform::ReleaseLoadedFile(dtb_file);
             ribon::platform::ReleaseLoadedFile(kernel_file);
             report("Failed to allocate LBPB handoff buffer.");
             return false;
@@ -156,13 +252,14 @@ bool ExecuteBootFlow(const BootPolicyConfig& config, StatusReporter reporter) {
         if (!ribon::platform::RefreshMemoryMapSnapshot(snapshot)) {
             ribon::mem::FreePool(handoff_buffer);
             ribon::platform::ReleaseMemoryMapSnapshot(snapshot);
+            ribon::platform::ReleaseLoadedFile(dtb_file);
             ribon::platform::ReleaseLoadedFile(kernel_file);
             report("Failed to capture final memory map.");
             return false;
         }
 
         if (!ribon::handoff::BuildCoreLbpb(
-                ribon::platform::CaptureBootContext(),
+                boot_context,
                 snapshot,
                 artifact.image,
                 lbpb_config,
@@ -171,19 +268,21 @@ bool ExecuteBootFlow(const BootPolicyConfig& config, StatusReporter reporter) {
                 artifact.handoff)) {
             ribon::mem::FreePool(handoff_buffer);
             ribon::platform::ReleaseMemoryMapSnapshot(snapshot);
+            ribon::platform::ReleaseLoadedFile(dtb_file);
             ribon::platform::ReleaseLoadedFile(kernel_file);
             report("Failed to build LBPB handoff.");
             return false;
         }
     }
+    ribon::platform::ReleaseLoadedFile(dtb_file);
 
     report("Exiting UEFI boot services...");
-    const ribon::platform::BootContext context = ribon::platform::CaptureBootContext();
-    if (!ribon::platform::ExitBootServicesWithRetry(context, snapshot)) {
+    if (!ribon::platform::ExitBootServicesWithRetry(boot_context, snapshot)) {
         if (handoff_buffer) {
             ribon::mem::FreePool(handoff_buffer);
         }
         ribon::platform::ReleaseMemoryMapSnapshot(snapshot);
+        ribon::platform::ReleaseLoadedFile(dtb_file);
         ribon::platform::ReleaseLoadedFile(kernel_file);
         report("ExitBootServices failed.");
         return false;

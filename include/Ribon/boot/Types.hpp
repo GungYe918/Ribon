@@ -59,7 +59,10 @@ struct BootArtifact {
 struct BootPolicyConfig {
     const char* kernel_path = "\\kernel\\kernel.elf";
     const char* boot_cmdline = "kairon.autoboot=1";
+    const char* dtb_path = "\\EFI\\KAIRON\\platform.dtb";
     bool ui_enabled = false;
+    bool accept_dtb = true;
+    bool require_dtb = false;
 };
 
 struct LoadedFileBuffer {

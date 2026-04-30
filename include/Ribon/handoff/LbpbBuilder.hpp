@@ -12,6 +12,8 @@ namespace ribon::handoff {
 struct LbpbBuildConfig {
     const char* boot_cmdline = nullptr;
     bool core_only = true;
+    const void* device_tree = nullptr;
+    UINTN device_tree_size = 0;
 };
 
 UINTN EstimateCoreLbpbSize(const ribon::platform::MemoryMapSnapshot& snapshot, const LbpbBuildConfig& config);

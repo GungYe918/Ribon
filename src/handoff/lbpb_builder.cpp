@@ -10,7 +10,7 @@ extern "C" {
 
 namespace {
 
-constexpr UINTN kMaxCoreSections = 6;
+constexpr UINTN kMaxCoreSections = 8;
 
 UINTN AlignUp(UINTN value, UINTN alignment) {
     if (alignment == 0) {
@@ -100,6 +100,9 @@ UINTN EstimateCoreLbpbSize(const ribon::platform::MemoryMapSnapshot& snapshot, c
             ++cmd_len;
         }
         total += AlignUp(cmd_len + 1, 64);
+    }
+    if (config.device_tree && config.device_tree_size > 0) {
+        total += AlignUp(config.device_tree_size, 64);
     }
 
     total += 1024;
@@ -311,6 +314,21 @@ bool BuildCoreLbpb(
                 return false;
             }
             has_acpi = true;
+        }
+    }
+
+    if (config.device_tree && config.device_tree_size > 0) {
+        if (!append_section(
+                LEYN_BPB_SEC_DEVICE_TREE,
+                LEYN_BPB_SEC_FLAG_OPTIONAL |
+                    LEYN_BPB_SEC_FLAG_SRC_FDT |
+                    LEYN_BPB_SEC_FLAG_HW_RELATED |
+                    LEYN_BPB_SEC_FLAG_EARLY_MAP,
+                64,
+                config.device_tree,
+                config.device_tree_size,
+                0)) {
+            return false;
         }
     }
 
