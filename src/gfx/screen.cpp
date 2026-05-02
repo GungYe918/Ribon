@@ -96,6 +96,10 @@ namespace ribon::gfx {
             desiredHeight = 600;
         }
 
+        ribon::selectGopMode(desiredWidth, desiredHeight);
+        gop = ribon::getGop();
+        if (!gop) return false;
+
         // 먼저 기존 fb 초기화
         if (!ribon::fb::initFrameBuffer()) {
             return false;

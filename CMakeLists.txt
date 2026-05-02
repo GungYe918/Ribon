@@ -23,6 +23,8 @@ option(RIBON_BUILD_GUI "Build GUI EFI bootloader target" ON)
 option(RIBON_BUILD_AUTOBOOT "Build CLI autoboot EFI target" ON)
 set(KAIRON_RIBON_ACCEPT_DTB "0" CACHE STRING "Accept DTB handoff")
 set(KAIRON_RIBON_REQUIRE_DTB "0" CACHE STRING "Require DTB handoff")
+set(KAIRON_RIBON_GOP_WIDTH "600" CACHE STRING "Requested GOP framebuffer width")
+set(KAIRON_RIBON_GOP_HEIGHT "800" CACHE STRING "Requested GOP framebuffer height")
 
 message(STATUS "BOOTLOADER mode: ${BOOTLOADER}")
 message(STATUS "GUI target: ${RIBON_BUILD_GUI}")
@@ -38,7 +40,9 @@ add_compile_options(-fno-stack-check)
 add_definitions(-DUEFI)
 add_compile_definitions(
     KAIRON_RIBON_ACCEPT_DTB=${KAIRON_RIBON_ACCEPT_DTB}
-    KAIRON_RIBON_REQUIRE_DTB=${KAIRON_RIBON_REQUIRE_DTB})
+    KAIRON_RIBON_REQUIRE_DTB=${KAIRON_RIBON_REQUIRE_DTB}
+    KAIRON_RIBON_GOP_WIDTH=${KAIRON_RIBON_GOP_WIDTH}
+    KAIRON_RIBON_GOP_HEIGHT=${KAIRON_RIBON_GOP_HEIGHT})
 
 if(ARCH STREQUAL "x86_64")
     add_compile_definitions(RIBON_ARCH_X86_64=1)

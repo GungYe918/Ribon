@@ -48,4 +48,54 @@ namespace ribon {
     EFI_HANDLE                      getImageHandle()    {  return gImageHandle;     }
     EFI_FILE_PROTOCOL*              getFileRoot()       {  return gFileRoot;        }
 
+    bool selectGopMode(UINTN width, UINTN height) {
+        if (!gBS || width == 0 || height == 0) {
+            return false;
+        }
+
+        EFI_HANDLE* handles = nullptr;
+        UINTN handleCount = 0;
+        EFI_STATUS status = gBS->LocateHandleBuffer(
+            ByProtocol,
+            &gEfiGraphicsOutputProtocolGuid,
+            nullptr,
+            &handleCount,
+            &handles
+        );
+        if (EFI_ERROR(status) || !handles) {
+            return false;
+        }
+
+        bool selected = false;
+        for (UINTN handleIndex = 0; handleIndex < handleCount && !selected; ++handleIndex) {
+            EFI_GRAPHICS_OUTPUT_PROTOCOL* gop = nullptr;
+            status = gBS->HandleProtocol(
+                handles[handleIndex],
+                &gEfiGraphicsOutputProtocolGuid,
+                (void**)&gop
+            );
+            if (EFI_ERROR(status) || !gop || !gop->Mode) {
+                continue;
+            }
+
+            for (UINT32 mode = 0; mode < gop->Mode->MaxMode; ++mode) {
+                EFI_GRAPHICS_OUTPUT_MODE_INFORMATION* info = nullptr;
+                UINTN infoSize = 0;
+                if (gop->QueryMode(gop, mode, &infoSize, &info) != EFI_SUCCESS || !info) {
+                    continue;
+                }
+                if (info->HorizontalResolution == width &&
+                    info->VerticalResolution == height &&
+                    gop->SetMode(gop, mode) == EFI_SUCCESS) {
+                    gGop = gop;
+                    selected = true;
+                    break;
+                }
+            }
+        }
+
+        gBS->FreePool(handles);
+        return selected;
+    }
+
 } // namespace ribon

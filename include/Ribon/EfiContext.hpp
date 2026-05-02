@@ -14,6 +14,7 @@ namespace ribon {
     EFI_SYSTEM_TABLE* getST();
     EFI_BOOT_SERVICES* getBS();
     EFI_GRAPHICS_OUTPUT_PROTOCOL* getGop();
+    bool selectGopMode(UINTN width, UINTN height);
     EFI_HANDLE getImageHandle();
     EFI_FILE_PROTOCOL* getFileRoot();
 

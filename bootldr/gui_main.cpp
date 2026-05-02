@@ -87,7 +87,7 @@ EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable) {
 
     console.SetMode(ribon::console::TextMode::FBFont);
 
-    if (!ribon::gfx::initScreen(1200, 800)) {
+    if (!ribon::gfx::initScreen(KAIRON_RIBON_GOP_WIDTH, KAIRON_RIBON_GOP_HEIGHT)) {
         ribon::IO::Print<ribon::IO::Tags::DEBUG>(
             "GUI: initScreen failed; falling back to autoboot.\r\n");
         ribon::boot::ExecuteBootFlow(

@@ -133,7 +133,7 @@ EfiMain(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable)
     auto st = ribon::getST();
     auto bs = ribon::getBS();
 
-    ribon::gfx::initScreen(1200, 800);
+    ribon::gfx::initScreen(KAIRON_RIBON_GOP_WIDTH, KAIRON_RIBON_GOP_HEIGHT);
     ribon::gfx::clear(160, 165, 255, 255);
 
     // 배너 출력 (처음 1프레임에만 보이고 이후 UI 루프에서 덮일 수 있음)
