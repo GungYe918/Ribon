@@ -121,13 +121,14 @@ bool LoadElfKernelImage(
     const UINTN alloc_pages =
         (alloc_size + page_bytes - 1) / page_bytes;
     /*
-     * AMD64 커널은 아직 relocation/MMU 단계가 없으므로 링커가 정한
-     * 물리 주소에 그대로 올린다. AArch64는 기존처럼 page-aligned
-     * 임의 loader 영역에 올려도 PC-relative 코드가 정상 동작한다.
+     * High-VMA dual-entry kernel은 low trampoline LMA를 기준으로 page
+     * table을 만든다. p_paddr가 있는 LBPB kernel은 architecture와
+     * 무관하게 ELF가 선언한 낮은 load window에 올려야 함.
      */
     EFI_ALLOCATE_TYPE alloc_type = AllocateAnyPages;
     EFI_PHYSICAL_ADDRESS phys_buffer = 0;
-    if (request.arch == ribon::boot::BootArch::X86_64) {
+    if (request.load_policy == ribon::boot::LoadAddressPolicy::UsePaddrWhenAvailable &&
+        paddr_min != ~UINT64(0)) {
         alloc_type = AllocateAddress;
         phys_buffer = alloc_base;
     }
