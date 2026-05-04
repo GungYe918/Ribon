@@ -44,6 +44,10 @@ bool LoadElfKernelImage(
     const UINT64 page_size = ribon::arch::CurrentElfPageSize();
     UINT64 load_min = ~UINT64(0);
     UINT64 load_max = 0;
+    UINT64 vaddr_min = ~UINT64(0);
+    UINT64 vaddr_max = 0;
+    UINT64 paddr_min = ~UINT64(0);
+    UINT64 paddr_max = 0;
     UINT64 actual_entry = 0;
 
     for (UINT16 i = 0; i < eh->e_phnum; ++i) {
@@ -61,11 +65,34 @@ bool LoadElfKernelImage(
             load_addr = p.p_paddr;
         }
 
+        if (out.segment_count < ribon::boot::kMaxKernelImageSegments) {
+            ribon::boot::LoadedKernelSegment& segment = out.segments[out.segment_count++];
+            segment.vaddr = p.p_vaddr;
+            segment.paddr = p.p_paddr;
+            segment.load_addr = load_addr;
+            segment.mem_size = p.p_memsz;
+            segment.file_size = p.p_filesz;
+            segment.align = p.p_align;
+            segment.flags = p.p_flags;
+        }
+
         if (load_addr < load_min) {
             load_min = load_addr;
         }
         if (load_addr + p.p_memsz > load_max) {
             load_max = load_addr + p.p_memsz;
+        }
+        if (p.p_vaddr < vaddr_min) {
+            vaddr_min = p.p_vaddr;
+        }
+        if (p.p_vaddr + p.p_memsz > vaddr_max) {
+            vaddr_max = p.p_vaddr + p.p_memsz;
+        }
+        if (p.p_paddr < paddr_min) {
+            paddr_min = p.p_paddr;
+        }
+        if (p.p_paddr + p.p_memsz > paddr_max) {
+            paddr_max = p.p_paddr + p.p_memsz;
         }
 
         if (eh->e_entry >= p.p_vaddr && eh->e_entry < p.p_vaddr + p.p_memsz) {
@@ -132,6 +159,14 @@ bool LoadElfKernelImage(
         UINT8* dst = reinterpret_cast<UINT8*>(
             static_cast<UINTN>(runtime_base + (load_addr - alloc_base))
         );
+        for (UINT32 segment_index = 0; segment_index < out.segment_count; ++segment_index) {
+            if (out.segments[segment_index].load_addr == load_addr &&
+                out.segments[segment_index].mem_size == p.p_memsz) {
+                out.segments[segment_index].runtime_addr =
+                    runtime_base + (load_addr - alloc_base);
+                break;
+            }
+        }
         const UINT8* src = base + p.p_offset;
         const UINTN filesz = static_cast<UINTN>(p.p_filesz);
         const UINTN memsz = static_cast<UINTN>(p.p_memsz);
@@ -147,8 +182,14 @@ bool LoadElfKernelImage(
 
     const UINT64 resolved_entry = actual_entry != 0 ? actual_entry : eh->e_entry;
     out.entry = runtime_base + (resolved_entry - alloc_base);
+    out.entry_vaddr = eh->e_entry;
+    out.entry_load_addr = resolved_entry;
     out.phys_start = runtime_base;
     out.phys_end = runtime_base + alloc_size;
+    out.linked_vaddr_start = vaddr_min;
+    out.linked_vaddr_end = vaddr_max;
+    out.linked_paddr_start = paddr_min == ~UINT64(0) ? 0 : paddr_min;
+    out.linked_paddr_end = paddr_max;
     out.format = request.format;
     out.arch = request.arch;
     out.load_policy = request.load_policy;

@@ -29,6 +29,19 @@ enum class LoadAddressPolicy : UINT32 {
     UseVaddr,
 };
 
+inline constexpr UINTN kMaxKernelImageSegments = 8;
+
+struct LoadedKernelSegment {
+    UINT64 vaddr = 0;
+    UINT64 paddr = 0;
+    UINT64 load_addr = 0;
+    UINT64 runtime_addr = 0;
+    UINT64 mem_size = 0;
+    UINT64 file_size = 0;
+    UINT64 align = 0;
+    UINT64 flags = 0;
+};
+
 struct KernelProbeResult {
     KernelFormat format = KernelFormat::Unknown;
     HandoffKind preferred_handoff = HandoffKind::None;
@@ -37,11 +50,19 @@ struct KernelProbeResult {
 
 struct LoadedKernelImage {
     UINT64 entry = 0;
+    UINT64 entry_vaddr = 0;
+    UINT64 entry_load_addr = 0;
     UINT64 phys_start = 0;
     UINT64 phys_end = 0;
+    UINT64 linked_vaddr_start = 0;
+    UINT64 linked_vaddr_end = 0;
+    UINT64 linked_paddr_start = 0;
+    UINT64 linked_paddr_end = 0;
+    UINT32 segment_count = 0;
     KernelFormat format = KernelFormat::Unknown;
     BootArch arch = BootArch::Unknown;
     LoadAddressPolicy load_policy = LoadAddressPolicy::UsePaddrWhenAvailable;
+    LoadedKernelSegment segments[kMaxKernelImageSegments]{};
 };
 
 struct HandoffBlob {

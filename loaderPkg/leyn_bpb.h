@@ -125,6 +125,7 @@ enum leyn_bpb_section_type {
     LEYN_BPB_SEC_UEFI_GOP_MODE    = 0x0020u, /* UEFI GOP 모드 상세 정보 */
     LEYN_BPB_SEC_VGA_TEXT_MODE    = 0x0021u, /* VGA 텍스트 모드 정보 (cols/rows 등) */
     LEYN_BPB_SEC_EDID             = 0x0022u, /* EDID/DisplayID 등 디스플레이 식별 정보 */
+    LEYN_BPB_SEC_KERNEL_IMAGE_LAYOUT = 0x0023u, /* ELF VMA/load layout 및 higher-half boot contract */
 
     LEYN_BPB_SEC_VENDOR_START     = 0x8000u, /* Leyn 전용/실험적 섹션 시작 범위 */
 };
@@ -307,6 +308,46 @@ struct leyn_bpb_boot_module {
     uint64_t phys_end;     /* 모듈 끝 물리 주소(마지막 바이트+1) */
     uint32_t string_offset;/* 모듈을 설명하는 문자열 오프셋(섹션 내 문자열 테이블 기준) */
     uint32_t flags;        /* 모듈 개별 플래그(정책/우선순위 등, 구현 정의) */
+};
+
+#define LEYN_BPB_KERNEL_IMAGE_LAYOUT_VERSION 1u
+#define LEYN_BPB_KERNEL_IMAGE_LAYOUT_MAX_SEGMENTS 8u
+
+enum leyn_bpb_kernel_image_layout_flags {
+    LEYN_BPB_KERNEL_IMAGE_LAYOUT_ENTRY_LOAD_VALID = (1u << 0),
+    LEYN_BPB_KERNEL_IMAGE_LAYOUT_ENTRY_VIRT_VALID = (1u << 1),
+    LEYN_BPB_KERNEL_IMAGE_LAYOUT_HIGH_ENTRY_CANDIDATE = (1u << 2),
+    LEYN_BPB_KERNEL_IMAGE_LAYOUT_LOW_ENTRY_FALLBACK = (1u << 3),
+    LEYN_BPB_KERNEL_IMAGE_LAYOUT_PADDR_LOAD_POLICY = (1u << 4),
+};
+
+struct leyn_bpb_kernel_segment_layout {
+    uint64_t vaddr;
+    uint64_t paddr;
+    uint64_t load_addr;
+    uint64_t runtime_addr;
+    uint64_t mem_size;
+    uint64_t file_size;
+    uint64_t align;
+    uint64_t flags;
+};
+
+struct leyn_bpb_kernel_image_layout {
+    uint32_t version;
+    uint32_t flags;
+    uint64_t entry_vaddr;
+    uint64_t entry_load_addr;
+    uint64_t runtime_entry_addr;
+    uint64_t load_phys_base;
+    uint64_t load_phys_end;
+    uint64_t linked_vaddr_base;
+    uint64_t linked_vaddr_end;
+    uint64_t linked_paddr_base;
+    uint64_t linked_paddr_end;
+    uint64_t image_size;
+    uint32_t segment_count;
+    uint32_t reserved;
+    struct leyn_bpb_kernel_segment_layout segments[LEYN_BPB_KERNEL_IMAGE_LAYOUT_MAX_SEGMENTS];
 };
 
 /** @brief ELF 섹션/심볼 테이블 정보 (Multiboot2 ELF-Symbols 대응) */

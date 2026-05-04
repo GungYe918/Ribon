@@ -10,7 +10,7 @@ extern "C" {
 
 namespace {
 
-constexpr UINTN kMaxCoreSections = 8;
+constexpr UINTN kMaxCoreSections = 10;
 
 UINTN AlignUp(UINTN value, UINTN alignment) {
     if (alignment == 0) {
@@ -76,6 +76,46 @@ bool WriteBytes(UINT8* buffer, UINTN capacity, UINTN& cursor, const void* data, 
     return true;
 }
 
+leyn_bpb_kernel_image_layout BuildKernelImageLayout(const ribon::boot::LoadedKernelImage& image) {
+    leyn_bpb_kernel_image_layout layout{};
+    layout.version = LEYN_BPB_KERNEL_IMAGE_LAYOUT_VERSION;
+    layout.flags =
+        LEYN_BPB_KERNEL_IMAGE_LAYOUT_ENTRY_LOAD_VALID |
+        LEYN_BPB_KERNEL_IMAGE_LAYOUT_ENTRY_VIRT_VALID |
+        LEYN_BPB_KERNEL_IMAGE_LAYOUT_HIGH_ENTRY_CANDIDATE |
+        LEYN_BPB_KERNEL_IMAGE_LAYOUT_LOW_ENTRY_FALLBACK;
+    if (image.load_policy == ribon::boot::LoadAddressPolicy::UsePaddrWhenAvailable) {
+        layout.flags |= LEYN_BPB_KERNEL_IMAGE_LAYOUT_PADDR_LOAD_POLICY;
+    }
+    layout.entry_vaddr = image.entry_vaddr;
+    layout.entry_load_addr = image.entry_load_addr;
+    layout.runtime_entry_addr = image.entry;
+    layout.load_phys_base = image.phys_start;
+    layout.load_phys_end = image.phys_end;
+    layout.linked_vaddr_base = image.linked_vaddr_start;
+    layout.linked_vaddr_end = image.linked_vaddr_end;
+    layout.linked_paddr_base = image.linked_paddr_start;
+    layout.linked_paddr_end = image.linked_paddr_end;
+    layout.image_size = image.phys_end >= image.phys_start ?
+        image.phys_end - image.phys_start :
+        0;
+    layout.segment_count = image.segment_count;
+    if (layout.segment_count > LEYN_BPB_KERNEL_IMAGE_LAYOUT_MAX_SEGMENTS) {
+        layout.segment_count = LEYN_BPB_KERNEL_IMAGE_LAYOUT_MAX_SEGMENTS;
+    }
+    for (UINT32 i = 0; i < layout.segment_count; ++i) {
+        layout.segments[i].vaddr = image.segments[i].vaddr;
+        layout.segments[i].paddr = image.segments[i].paddr;
+        layout.segments[i].load_addr = image.segments[i].load_addr;
+        layout.segments[i].runtime_addr = image.segments[i].runtime_addr;
+        layout.segments[i].mem_size = image.segments[i].mem_size;
+        layout.segments[i].file_size = image.segments[i].file_size;
+        layout.segments[i].align = image.segments[i].align;
+        layout.segments[i].flags = image.segments[i].flags;
+    }
+    return layout;
+}
+
 } // namespace
 
 namespace ribon::handoff {
@@ -93,6 +133,7 @@ UINTN EstimateCoreLbpbSize(const ribon::platform::MemoryMapSnapshot& snapshot, c
     total += AlignUp(sizeof(leyn_bpb_efi_mmap_meta) + map_size, 64);
     total += AlignUp(sizeof(leyn_bpb_fb_info), 64);
     total += AlignUp(sizeof(UINT64), 64);
+    total += AlignUp(sizeof(leyn_bpb_kernel_image_layout), 64);
 
     if (config.boot_cmdline) {
         UINTN cmd_len = 0;
@@ -341,6 +382,22 @@ bool BuildCoreLbpb(
             sizeof(image_load_base),
             0)) {
         return false;
+    }
+
+#if !defined(KAIRON_RIBON_HIGHER_HALF_CONTRACT)
+#define KAIRON_RIBON_HIGHER_HALF_CONTRACT 1
+#endif
+    if (KAIRON_RIBON_HIGHER_HALF_CONTRACT != 0) {
+        const leyn_bpb_kernel_image_layout layout = BuildKernelImageLayout(image);
+        if (!append_section(
+                LEYN_BPB_SEC_KERNEL_IMAGE_LAYOUT,
+                LEYN_BPB_SEC_FLAG_CORE | LEYN_BPB_SEC_FLAG_EARLY_MAP | LEYN_BPB_SEC_FLAG_HOT,
+                64,
+                &layout,
+                sizeof(layout),
+                0)) {
+            return false;
+        }
     }
 
     if (config.boot_cmdline) {

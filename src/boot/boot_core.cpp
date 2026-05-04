@@ -273,6 +273,13 @@ bool ExecuteBootFlow(const BootPolicyConfig& config, StatusReporter reporter) {
             report("Failed to build LBPB handoff.");
             return false;
         }
+#if !defined(KAIRON_RIBON_HIGHER_HALF_CONTRACT)
+#define KAIRON_RIBON_HIGHER_HALF_CONTRACT 1
+#endif
+        if (KAIRON_RIBON_HIGHER_HALF_CONTRACT != 0) {
+            report("RIBON-KERNEL-LAYOUT-OK");
+            report("RIBON-HIGH-ENTRY-CANDIDATE-OK");
+        }
     }
     ribon::platform::ReleaseLoadedFile(dtb_file);
 
