@@ -310,7 +310,7 @@ struct leyn_bpb_boot_module {
     uint32_t flags;        /* 모듈 개별 플래그(정책/우선순위 등, 구현 정의) */
 };
 
-#define LEYN_BPB_KERNEL_IMAGE_LAYOUT_VERSION 1u
+#define LEYN_BPB_KERNEL_IMAGE_LAYOUT_VERSION 2u
 #define LEYN_BPB_KERNEL_IMAGE_LAYOUT_MAX_SEGMENTS 8u
 
 enum leyn_bpb_kernel_image_layout_flags {
@@ -319,6 +319,7 @@ enum leyn_bpb_kernel_image_layout_flags {
     LEYN_BPB_KERNEL_IMAGE_LAYOUT_HIGH_ENTRY_CANDIDATE = (1u << 2),
     LEYN_BPB_KERNEL_IMAGE_LAYOUT_LOW_ENTRY_FALLBACK = (1u << 3),
     LEYN_BPB_KERNEL_IMAGE_LAYOUT_PADDR_LOAD_POLICY = (1u << 4),
+    LEYN_BPB_KERNEL_IMAGE_LAYOUT_DIRECT_HIGH_ENTRY = (1u << 5),
 };
 
 struct leyn_bpb_kernel_segment_layout {
@@ -345,6 +346,9 @@ struct leyn_bpb_kernel_image_layout {
     uint64_t linked_paddr_base;
     uint64_t linked_paddr_end;
     uint64_t image_size;
+    uint64_t high_entry_vaddr;
+    uint64_t high_entry_load_addr;
+    uint64_t direct_entry_flags;
     uint32_t segment_count;
     uint32_t reserved;
     struct leyn_bpb_kernel_segment_layout segments[LEYN_BPB_KERNEL_IMAGE_LAYOUT_MAX_SEGMENTS];

@@ -52,6 +52,8 @@ struct LoadedKernelImage {
     UINT64 entry = 0;
     UINT64 entry_vaddr = 0;
     UINT64 entry_load_addr = 0;
+    UINT64 high_entry_vaddr = 0;
+    UINT64 high_entry_load_addr = 0;
     UINT64 phys_start = 0;
     UINT64 phys_end = 0;
     UINT64 linked_vaddr_start = 0;
@@ -59,6 +61,7 @@ struct LoadedKernelImage {
     UINT64 linked_paddr_start = 0;
     UINT64 linked_paddr_end = 0;
     UINT32 segment_count = 0;
+    UINT32 direct_entry_flags = 0;
     KernelFormat format = KernelFormat::Unknown;
     BootArch arch = BootArch::Unknown;
     LoadAddressPolicy load_policy = LoadAddressPolicy::UsePaddrWhenAvailable;

@@ -6,6 +6,7 @@ extern "C" {
 
 #include <Ribon/EfiContext.hpp>
 #include <Ribon/Memory.hpp>
+#include <Ribon/arch/KernelJump.hpp>
 #include <loaderPkg/leyn_bpb.h>
 
 namespace {
@@ -87,6 +88,9 @@ leyn_bpb_kernel_image_layout BuildKernelImageLayout(const ribon::boot::LoadedKer
     if (image.load_policy == ribon::boot::LoadAddressPolicy::UsePaddrWhenAvailable) {
         layout.flags |= LEYN_BPB_KERNEL_IMAGE_LAYOUT_PADDR_LOAD_POLICY;
     }
+    if (image.high_entry_vaddr != 0 && image.high_entry_load_addr != 0) {
+        layout.flags |= LEYN_BPB_KERNEL_IMAGE_LAYOUT_DIRECT_HIGH_ENTRY;
+    }
     layout.entry_vaddr = image.entry_vaddr;
     layout.entry_load_addr = image.entry_load_addr;
     layout.runtime_entry_addr = image.entry;
@@ -99,6 +103,11 @@ leyn_bpb_kernel_image_layout BuildKernelImageLayout(const ribon::boot::LoadedKer
     layout.image_size = image.phys_end >= image.phys_start ?
         image.phys_end - image.phys_start :
         0;
+    layout.high_entry_vaddr = image.high_entry_vaddr;
+    layout.high_entry_load_addr = image.high_entry_load_addr;
+    layout.direct_entry_flags =
+        ribon::arch::kKernelEntryFlagEnteredHigh |
+        ribon::arch::kKernelEntryFlagRibonDirectHigh;
     layout.segment_count = image.segment_count;
     if (layout.segment_count > LEYN_BPB_KERNEL_IMAGE_LAYOUT_MAX_SEGMENTS) {
         layout.segment_count = LEYN_BPB_KERNEL_IMAGE_LAYOUT_MAX_SEGMENTS;

@@ -48,6 +48,9 @@ bool LoadElfKernelImage(
     UINT64 vaddr_max = 0;
     UINT64 paddr_min = ~UINT64(0);
     UINT64 paddr_max = 0;
+    UINT64 high_vaddr_min = ~UINT64(0);
+    UINT64 high_vaddr_max = 0;
+    UINT64 high_load_min = ~UINT64(0);
     UINT64 actual_entry = 0;
 
     for (UINT16 i = 0; i < eh->e_phnum; ++i) {
@@ -93,6 +96,15 @@ bool LoadElfKernelImage(
         }
         if (p.p_paddr + p.p_memsz > paddr_max) {
             paddr_max = p.p_paddr + p.p_memsz;
+        }
+        if ((p.p_vaddr & 0xFFFF000000000000ull) == 0xFFFF000000000000ull) {
+            if (p.p_vaddr < high_vaddr_min) {
+                high_vaddr_min = p.p_vaddr;
+                high_load_min = load_addr;
+            }
+            if (p.p_vaddr + p.p_memsz > high_vaddr_max) {
+                high_vaddr_max = p.p_vaddr + p.p_memsz;
+            }
         }
 
         if (eh->e_entry >= p.p_vaddr && eh->e_entry < p.p_vaddr + p.p_memsz) {
@@ -185,6 +197,8 @@ bool LoadElfKernelImage(
     out.entry = runtime_base + (resolved_entry - alloc_base);
     out.entry_vaddr = eh->e_entry;
     out.entry_load_addr = resolved_entry;
+    out.high_entry_vaddr = high_vaddr_min == ~UINT64(0) ? 0 : high_vaddr_min;
+    out.high_entry_load_addr = high_load_min == ~UINT64(0) ? 0 : high_load_min;
     out.phys_start = runtime_base;
     out.phys_end = runtime_base + alloc_size;
     out.linked_vaddr_start = vaddr_min;

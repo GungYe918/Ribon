@@ -233,6 +233,14 @@ bool ExecuteBootFlow(const BootPolicyConfig& config, StatusReporter reporter) {
     }
 
     void* handoff_buffer = nullptr;
+    ribon::arch::KernelJumpRequest jump_request{};
+    jump_request.fallback_entry = artifact.image.entry;
+#if !defined(KAIRON_RIBON_DIRECT_HIGH_ENTRY)
+#define KAIRON_RIBON_DIRECT_HIGH_ENTRY 1
+#endif
+#if !defined(KAIRON_RIBON_DIRECT_HIGH_REQUIRED)
+#define KAIRON_RIBON_DIRECT_HIGH_REQUIRED 0
+#endif
     if (artifact.handoff.kind == HandoffKind::LBPBCore) {
         const ribon::handoff::LbpbBuildConfig lbpb_config{
             config.boot_cmdline,
@@ -247,6 +255,25 @@ bool ExecuteBootFlow(const BootPolicyConfig& config, StatusReporter reporter) {
             ribon::platform::ReleaseLoadedFile(kernel_file);
             report("Failed to allocate LBPB handoff buffer.");
             return false;
+        }
+
+        jump_request.arg = handoff_buffer;
+        if (KAIRON_RIBON_DIRECT_HIGH_ENTRY != 0) {
+            if (ribon::arch::PrepareDirectHighEntry(artifact.image, jump_request)) {
+                jump_request.direct_high_enabled = true;
+                report("RIBON-DIRECT-HIGH-PAGETABLE-OK");
+            } else if (KAIRON_RIBON_DIRECT_HIGH_REQUIRED != 0) {
+                ribon::mem::FreePool(handoff_buffer);
+                ribon::platform::ReleaseMemoryMapSnapshot(snapshot);
+                ribon::platform::ReleaseLoadedFile(dtb_file);
+                ribon::platform::ReleaseLoadedFile(kernel_file);
+                report("Direct higher-half entry preparation failed.");
+                return false;
+            } else {
+                report("RIBON-DIRECT-HIGH-FALLBACK");
+            }
+        } else {
+            report("RIBON-DIRECT-HIGH-FALLBACK");
         }
 
         if (!ribon::platform::RefreshMemoryMapSnapshot(snapshot)) {
@@ -280,6 +307,9 @@ bool ExecuteBootFlow(const BootPolicyConfig& config, StatusReporter reporter) {
             report("RIBON-KERNEL-LAYOUT-OK");
             report("RIBON-HIGH-ENTRY-CANDIDATE-OK");
         }
+        if (jump_request.direct_high_enabled) {
+            report("RIBON-DIRECT-HIGH-ENTRY-OK");
+        }
     }
     ribon::platform::ReleaseLoadedFile(dtb_file);
 
@@ -296,10 +326,11 @@ bool ExecuteBootFlow(const BootPolicyConfig& config, StatusReporter reporter) {
     }
 
     artifact.handoff.data = handoff_buffer;
-    artifact.final_entry = artifact.image.entry;
-    ribon::arch::JumpToKernel(
-        artifact.final_entry,
-        artifact.handoff.kind == HandoffKind::None ? nullptr : artifact.handoff.data);
+    jump_request.arg = artifact.handoff.kind == HandoffKind::None ? nullptr : artifact.handoff.data;
+    artifact.final_entry = jump_request.direct_high_enabled ?
+        jump_request.high_entry :
+        jump_request.fallback_entry;
+    ribon::arch::JumpToKernel(jump_request);
     return true;
 }
 
